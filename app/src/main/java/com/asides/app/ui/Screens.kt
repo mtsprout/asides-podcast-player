@@ -15,6 +15,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -246,19 +250,10 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Wordmark centred at the top, then the search bar, then a one-line summary of the library.
         item(span = FullWidth) {
-            Column {
-                Text("Asides", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    if (podcasts.isEmpty()) "Find something to listen to"
-                    else buildString {
-                        append("${plural(podcasts.size, "podcast")} · ${plural(asideCount, "aside")}")
-                        val fresh = newCounts.values.sum()
-                        if (fresh > 0) append(" · $fresh new")
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Wordmark(fontSize = 44.sp, parentheses = true)
             }
         }
         item(span = FullWidth) {
@@ -282,6 +277,24 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { submit() }),
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item(span = FullWidth) {
+            val fresh = newCounts.values.sum()
+            Text(
+                if (podcasts.isEmpty()) AnnotatedString("Listen. Talk back.")
+                else buildAnnotatedString {
+                    append("${plural(podcasts.size, "podcast")} · ${plural(asideCount, "aside")}")
+                    if (fresh > 0) {
+                        append(" · ")
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.SemiBold)) {
+                            append("$fresh new")
+                        }
+                    }
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
         if (busy) item(span = FullWidth) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
@@ -347,10 +360,10 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
 /** "3 new": episodes a refresh found that haven't been opened yet. */
 @Composable
 private fun NewPill(count: Int, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primary, modifier = modifier.padding(6.dp)) {
+    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.tertiary, modifier = modifier.padding(6.dp)) {
         Text(
             "$count new", Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiary,
         )
     }
 }
@@ -422,7 +435,7 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                     Icon(
                         if (notify) Icons.Default.Notifications else Icons.Default.NotificationsNone,
                         if (notify) "Turn off new-episode notifications" else "Notify me about new episodes",
-                        tint = if (notify) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (notify) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -456,7 +469,7 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                     val dim = if (e.played) 0.5f else 1f
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (e.isNew) {
-                            Box(Modifier.padding(end = 6.dp).size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                            Box(Modifier.padding(end = 6.dp).size(8.dp).background(MaterialTheme.colorScheme.tertiary, CircleShape))
                         }
                         Text(e.title, style = EpisodeListStyle.title, modifier = Modifier.alpha(dim))
                     }

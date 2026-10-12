@@ -54,6 +54,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.asides.app.ui.AllAnnotationsScreen
+import com.asides.app.ui.AsidesTheme
 import com.asides.app.ui.EpisodeScreen
 import com.asides.app.ui.LibraryScreen
 import com.asides.app.ui.PlayerConnection
@@ -118,8 +119,10 @@ class MainActivity : ComponentActivity() {
             repo.transcribePending(app.transcriber)
         }
         val version = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+        // Debug builds only: `--es debug_theme light|dark` previews a theme without changing the phone's.
+        val forcedDark = if (debuggable) intent.getStringExtra("debug_theme")?.let { it == "dark" } else null
         setContent {
-            AppTheme {
+            AsidesTheme(dark = forcedDark ?: isSystemInDarkTheme()) {
                 Box(Modifier.fillMaxSize()) {
                     App(repo, pendingRoute) { pendingRoute = null }
                     StartupSplash(version)
@@ -127,18 +130,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-
-@Composable
-private fun AppTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val ctx = LocalContext.current
-    val scheme = when {
-        Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 @Composable

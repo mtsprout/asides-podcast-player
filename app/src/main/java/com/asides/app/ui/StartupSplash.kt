@@ -7,6 +7,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +52,8 @@ fun StartupSplash(version: String) {
         ) {
             // The system splash draws its icon on a 288dp canvas; match it.
             Image(painterResource(R.drawable.splash_icon_static), null, Modifier.size(288.dp))
+            // Just below the disc (about 90dp below centre), without moving the icon off the system splash's spot.
+            Wordmark(fontSize = 38.sp, parentheses = false, modifier = Modifier.offset(y = 140.dp))
             Text(
                 "Version $version",
                 style = MaterialTheme.typography.labelSmall,
