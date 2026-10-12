@@ -15,6 +15,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.core.app.NotificationManagerCompat
+import android.widget.Toast
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
 import kotlinx.coroutines.flow.map
@@ -181,11 +186,14 @@ private fun SectionTitle(text: String) =
 
 private fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview: (SearchResult) -> Unit) {
     val podcasts by repo.podcasts.collectAsState(emptyList())
     val subscribed = remember(podcasts) { podcasts.map { it.feedUrl }.toSet() }
     val asideCount by remember { repo.allAnnotations.map { it.size } }.collectAsState(0)
+    val newCounts by repo.newCounts.collectAsState(emptyMap())
+    var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     var query by remember { mutableStateOf("") }
@@ -226,6 +234,11 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
         }
     }
 
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = { scope.launch { refreshing = true; repo.refreshAll(force = true); refreshing = false } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(6),
         modifier = Modifier.fillMaxSize(),
@@ -238,7 +251,11 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
                 Text("Asides", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Text(
                     if (podcasts.isEmpty()) "Find something to listen to"
-                    else "${plural(podcasts.size, "podcast")} · ${plural(asideCount, "aside")}",
+                    else buildString {
+                        append("${plural(podcasts.size, "podcast")} · ${plural(asideCount, "aside")}")
+                        val fresh = newCounts.values.sum()
+                        if (fresh > 0) append(" · $fresh new")
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -276,6 +293,7 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
                 Column(Modifier.clickable { onOpenPodcast(p.id) }) {
                     Box {
                         TileArtwork(p.artworkUrl)
+                        newCounts[p.id]?.let { NewPill(it, Modifier.align(Alignment.TopStart)) }
                         SubscribeBadge(
                             subscribed = true, busy = p.feedUrl in subscribing,
                             onClick = { toggleSubscription(p.feedUrl) }, modifier = Modifier.align(Alignment.BottomEnd),
@@ -323,15 +341,31 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
             }
         }
     }
+    }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/** "3 new": episodes a refresh found that haven't been opened yet. */
+@Composable
+private fun NewPill(count: Int, modifier: Modifier = Modifier) {
+    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primary, modifier = modifier.padding(6.dp)) {
+        Text(
+            "$count new", Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Unit) {
     val all by repo.episodes(podcastId).collectAsState(emptyList())
     val podcast by repo.podcast(podcastId).collectAsState(null)
     val scope = rememberCoroutineScope()
-    val prefs = LocalContext.current.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE)
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE)
+    var refreshing by remember { mutableStateOf(false) }
+    // Look for new episodes when the page opens (skipped if checked in the last half hour).
+    LaunchedEffect(podcastId) { repo.refreshPodcast(podcastId) }
     // Oldest first by default, which is the natural order for working through a series.
     var newestFirst by remember { mutableStateOf(prefs.getBoolean("newestFirst", false)) }
     var hidePlayed by remember { mutableStateOf(prefs.getBoolean("hidePlayed", false)) }
@@ -363,13 +397,34 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
         scope.launch { repo.setPlayed(ids, played) }
     }
 
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = { scope.launch { refreshing = true; repo.refreshPodcast(podcastId, force = true); refreshing = false } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     // The action bar floats over the list so the rows don't jump when selection starts.
     Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Artwork(podcast?.artworkUrl, 96.dp)
-                Text(podcast?.title.orEmpty(), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 16.dp))
+                Text(
+                    podcast?.title.orEmpty(), style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).padding(start = 16.dp),
+                )
+                val notify = podcast?.notifyNew == true
+                IconButton(onClick = {
+                    scope.launch { repo.setNotify(podcastId, !notify) }
+                    if (!notify && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                        Toast.makeText(context, "Notifications are turned off for Asides in system settings.", Toast.LENGTH_LONG).show()
+                    }
+                }) {
+                    Icon(
+                        if (notify) Icons.Default.Notifications else Icons.Default.NotificationsNone,
+                        if (notify) "Turn off new-episode notifications" else "Notify me about new episodes",
+                        tint = if (notify) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
@@ -399,7 +454,12 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
             ) {
                 Column(Modifier.weight(1f).padding(vertical = EpisodeListStyle.rowPadding)) {
                     val dim = if (e.played) 0.5f else 1f
-                    Text(e.title, style = EpisodeListStyle.title, modifier = Modifier.alpha(dim))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (e.isNew) {
+                            Box(Modifier.padding(end = 6.dp).size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        }
+                        Text(e.title, style = EpisodeListStyle.title, modifier = Modifier.alpha(dim))
+                    }
                     Text(
                         formatDate(e.pubDate) + if (e.played) " · Played" else "",
                         style = EpisodeListStyle.meta, modifier = Modifier.alpha(dim),
@@ -440,6 +500,7 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                 }
             }
         }
+    }
     }
     }
 }

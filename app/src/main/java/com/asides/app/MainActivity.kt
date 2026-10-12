@@ -2,7 +2,15 @@ package com.asides.app
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.asides.app.service.FeedRefreshWorker
+import com.asides.app.service.Notifier
 import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +66,26 @@ class MainActivity : ComponentActivity() {
         const val SYSTEM_SPLASH_MS = 800L
     }
 
+    /** A screen to open, set by tapping a notification; consumed once the navigation graph is up. */
+    private var pendingRoute by mutableStateOf<String?>(null)
+    private var skipStartupRefresh = false
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingRoute = intent.getStringExtra(Notifier.EXTRA_ROUTE)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Look for new episodes whenever the app comes to the front (podcasts checked in the last half
+        // hour are skipped). The test hook below runs its own refresh instead.
+        if (!skipStartupRefresh) {
+            val repo = (application as AsidesApp).repo
+            lifecycleScope.launch { repo.refreshAll() }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         val started = SystemClock.elapsedRealtime()
@@ -70,6 +98,20 @@ class MainActivity : ComponentActivity() {
         // Pick up any notes still waiting for a transcript (e.g. recorded while offline).
         val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         val retry = if (debuggable) intent.getStringExtra("retranscribe") else null
+        pendingRoute = intent.getStringExtra(Notifier.EXTRA_ROUTE)
+        // Debug builds only: `--es refresh_test 2` forgets each podcast's newest 2 episodes, turns
+        // notifications on, and runs the background refresh once, so the whole chain can be tried.
+        val refreshTest = if (debuggable) intent.getStringExtra("refresh_test")?.toIntOrNull() else null
+        // Debug builds only: `--es debug_subscribe url1,url2` subscribes to feeds without any tapping.
+        val debugFeeds = if (debuggable) intent.getStringExtra("debug_subscribe")?.split(",") else null
+        debugFeeds?.let { feeds -> lifecycleScope.launch { feeds.forEach { runCatching { repo.subscribe(it.trim()) } } } }
+        skipStartupRefresh = refreshTest != null
+        if (refreshTest != null) {
+            lifecycleScope.launch {
+                repo.simulateNewEpisodes(refreshTest)
+                WorkManager.getInstance(this@MainActivity).enqueue(OneTimeWorkRequestBuilder<FeedRefreshWorker>().build())
+            }
+        }
         lifecycleScope.launch {
             // Debug builds only: `adb shell am start ... --es retranscribe 1` re-runs every note.
             if (retry != null) repo.clearTranscripts()
@@ -79,7 +121,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppTheme {
                 Box(Modifier.fillMaxSize()) {
-                    App(repo)
+                    App(repo, pendingRoute) { pendingRoute = null }
                     StartupSplash(version)
                 }
             }
@@ -100,7 +142,7 @@ private fun AppTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun App(repo: com.asides.app.data.Repository) {
+private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onRouteHandled: () -> Unit) {
     val context = LocalContext.current
     val player = remember { PlayerConnection(context) }
     DisposableEffect(Unit) {
@@ -119,6 +161,13 @@ private fun App(repo: com.asides.app.data.Repository) {
     LaunchedEffect(Unit) { launcher.launch(permissions) }
 
     val nav = rememberNavController()
+    // A tapped notification names the screen it wants.
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let {
+            nav.navigate(it)
+            onRouteHandled()
+        }
+    }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route.orEmpty()
 

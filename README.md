@@ -22,6 +22,12 @@ screen off, so it fits walks, drives and chores.
   time, a speed picker (0.5x to 2.0x), a sleep timer (including "end of episode"), and share.
 - **Episode list tools.** Oldest-first by default, sorting, hide played, mark played, and range
   selection: long-press one episode, scroll, long-press another to select everything between.
+- **New episodes show up.** Asides checks your podcasts when you open it, when you pull down to
+  refresh (on the home page or a podcast's page), and in the background about every 4 hours.
+  Unchanged feeds are skipped cheaply. New episodes get a blue dot, and the home page shows
+  an "N new" badge on the podcast.
+- **Optional notifications.** Tap the bell on a podcast's page to be notified when it has a new
+  episode. They are off by default, one notification per podcast, and tapping one opens the episode.
 - **Unsubscribing is safe.** It removes a podcast from your library but keeps its episodes and
   your asides. Subscribe again and everything comes back.
 
@@ -103,8 +109,11 @@ go over the network:
 
 - The Top podcasts list uses an older, unofficial Apple endpoint that could stop working.
 - Episodes are streamed, not downloaded, so playback needs a connection.
-- **New episodes don't appear yet.** A podcast's episodes are fetched once, when you subscribe;
-  feeds are not refreshed afterwards. Refreshing is the next thing to build.
+- **Background refresh timing is up to Android.** "About every 4 hours" is a target, not a promise,
+  and some phones (Samsung's battery saver, for example) postpone background work for apps you
+  haven't opened in a while. Opening the app or pulling down to refresh always works.
+- Notifications need the notification permission (Android 13+), which Asides asks for on first
+  launch.
 - There is no queue yet: when an episode ends, playback stops.
 - Transcripts depend on your phone's recognizer and are not always accurate.
 
@@ -112,8 +121,8 @@ See [ROADMAP.md](ROADMAP.md) for what's planned.
 
 ## Built with
 
-Kotlin, Jetpack Compose and Material 3, Room, Media3 (ExoPlayer and MediaSession), OkHttp and
-Coil.
+Kotlin, Jetpack Compose and Material 3, Room, Media3 (ExoPlayer and MediaSession), WorkManager,
+OkHttp and Coil.
 
 ## License
 

@@ -11,6 +11,8 @@ data class ParsedEpisode(
     val pubDate: Long,
     val audioUrl: String,
     val durationMs: Long,
+    /** The feed's own id for this episode, when it provides one. */
+    val guid: String? = null,
     /** Raw show notes, usually HTML; convert with [FeedParser.plainText] when displaying. */
     val descriptionHtml: String = "",
 )
@@ -43,6 +45,7 @@ object FeedParser {
         var audio: String? = null
         var duration = 0L
         var itemDesc = ""
+        var itemGuid: String? = null
         var itemEncoded = ""
         var itemSummary = ""
 
@@ -55,7 +58,7 @@ object FeedParser {
                     when (raw.substringAfter(':')) {
                         "item" -> {
                             inItem = true; title = ""; pub = 0L; audio = null; duration = 0L
-                            itemDesc = ""; itemEncoded = ""; itemSummary = ""
+                            itemDesc = ""; itemEncoded = ""; itemSummary = ""; itemGuid = null
                         }
                         "title" -> if (raw == "title") {
                             val t = p.nextText().trim()
@@ -68,6 +71,7 @@ object FeedParser {
                             if (inItem) itemSummary = p.nextText() else summary = p.nextText()
                         }
                         "encoded" -> if (inItem && raw == "content:encoded") itemEncoded = p.nextText()
+                        "guid" -> if (inItem && raw == "guid") itemGuid = p.nextText().trim().ifEmpty { null }
                         // Only the plain-text forms: <atom:author> has child elements and nextText() would throw on it.
                         "author" -> if (!inItem && author.isEmpty() && (raw == "itunes:author" || raw == "author")) author = p.nextText().trim()
                         "pubDate" -> if (inItem) pub = parseDate(p.nextText())
@@ -86,7 +90,10 @@ object FeedParser {
                     "item" -> {
                         inItem = false
                         audio?.let {
-                            episodes += ParsedEpisode(title, pub, it, duration, itemEncoded.ifBlank { itemDesc }.ifBlank { itemSummary })
+                            episodes += ParsedEpisode(
+                                title, pub, it, duration, itemGuid,
+                                itemEncoded.ifBlank { itemDesc }.ifBlank { itemSummary },
+                            )
                         }
                     }
                 }

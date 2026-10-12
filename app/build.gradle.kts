@@ -39,6 +39,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Same testing aid as release: -PappIdSuffix=.dev installs a second copy beside the real app.
+            providers.gradleProperty("appIdSuffix").orNull?.let { applicationIdSuffix = it }
+        }
         release {
             // Shrink unused code and resources: a much smaller download.
             isMinifyEnabled = true
@@ -83,6 +87,8 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
+
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20240303")

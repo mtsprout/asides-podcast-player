@@ -74,6 +74,8 @@ fun EpisodeScreen(repo: Repository, episodeId: Long, player: PlayerConnection, o
     var tab by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val podcastId = episode?.podcastId
+    // Opening an episode clears its "new" marker.
+    LaunchedEffect(episode?.isNew) { if (episode?.isNew == true) repo.markSeen(episodeId) }
     val podcast by remember(podcastId) { podcastId?.let { repo.podcast(it) } ?: flowOf(null) }.collectAsState(null)
 
     Column(Modifier.fillMaxSize()) {

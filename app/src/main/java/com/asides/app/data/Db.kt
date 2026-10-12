@@ -20,8 +20,24 @@ interface PodcastDao {
     @Query("UPDATE podcast SET subscribed = :subscribed WHERE id = :id")
     suspend fun setSubscribed(id: Long, subscribed: Boolean)
 
+    @Query("SELECT * FROM podcast WHERE subscribed = 1")
+    suspend fun subscribedNow(): List<Podcast>
+
     @Query("SELECT * FROM podcast WHERE id = :id")
     suspend fun podcast(id: Long): Podcast?
+
+    @Query("UPDATE podcast SET notifyNew = :notify WHERE id = :id")
+    suspend fun setNotify(id: Long, notify: Boolean)
+
+    @Query("UPDATE podcast SET lastCheckedAt = :at WHERE id = :id")
+    suspend fun markChecked(id: Long, at: Long)
+
+    /** Test aid: forget the cache validators and check time, and switch notifications on. */
+    @Query("UPDATE podcast SET etag = NULL, lastModified = NULL, lastCheckedAt = 0, notifyNew = 1 WHERE id = :id")
+    suspend fun resetForRefreshTest(id: Long)
+
+    @Query("UPDATE podcast SET title = :title, artworkUrl = :artworkUrl, etag = :etag, lastModified = :lastModified, lastCheckedAt = :at WHERE id = :id")
+    suspend fun updateAfterFetch(id: Long, title: String, artworkUrl: String?, etag: String?, lastModified: String?, at: Long)
 
     @Query("SELECT * FROM podcast WHERE id = :id")
     fun podcastFlow(id: Long): Flow<Podcast?>
@@ -50,13 +66,34 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE id = :id")
     fun episodeFlow(id: Long): Flow<Episode?>
 
+    /** Returns the new row id for each episode, or -1 where it was skipped as a duplicate. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAll(episodes: List<Episode>)
+    suspend fun insertAll(episodes: List<Episode>): List<Long>
 
-    @Query("UPDATE episode SET played = :played WHERE id = :id")
+    @Query("SELECT id, guid, audioUrl, title, pubDate FROM episode WHERE podcastId = :podcastId")
+    suspend fun known(podcastId: Long): List<KnownEpisode>
+
+    @Query("SELECT COUNT(*) FROM episode WHERE podcastId = :podcastId")
+    suspend fun count(podcastId: Long): Int
+
+    /** Test aid: drop a podcast's newest episodes so a refresh will find them again as new. */
+    @Query("DELETE FROM episode WHERE id IN (SELECT id FROM episode WHERE podcastId = :podcastId ORDER BY pubDate DESC LIMIT :count)")
+    suspend fun deleteNewest(podcastId: Long, count: Int)
+
+    @Query("UPDATE episode SET guid = :guid, audioUrl = :audioUrl WHERE id = :id")
+    suspend fun updateIdentity(id: Long, guid: String?, audioUrl: String)
+
+    @Query("SELECT podcastId, COUNT(*) AS count FROM episode WHERE isNew = 1 GROUP BY podcastId")
+    fun newCounts(): Flow<List<NewCount>>
+
+    @Query("UPDATE episode SET isNew = 0 WHERE id = :id")
+    suspend fun markSeen(id: Long)
+
+    // Playing or marking an episode counts as having seen it.
+    @Query("UPDATE episode SET played = :played, isNew = 0 WHERE id = :id")
     suspend fun setPlayed(id: Long, played: Boolean)
 
-    @Query("UPDATE episode SET played = :played WHERE id IN (:ids)")
+    @Query("UPDATE episode SET played = :played, isNew = 0 WHERE id IN (:ids)")
     suspend fun setPlayed(ids: Collection<Long>, played: Boolean)
 
     @Query("UPDATE episode SET positionMs = :positionMs, durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END WHERE id = :id")
@@ -103,7 +140,7 @@ interface AnnotationDao {
     suspend fun delete(id: Long)
 }
 
-@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 2, exportSchema = false)
+@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 3, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun podcasts(): PodcastDao
     abstract fun episodes(): EpisodeDao
@@ -111,7 +148,20 @@ abstract class AppDb : RoomDatabase() {
 
     companion object {
         fun create(context: Context): AppDb =
-            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2).build()
+            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+
+        /** Adds what feed refreshing needs: cache validators, episode ids, a "new" flag and notify setting. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast ADD COLUMN etag TEXT")
+                db.execSQL("ALTER TABLE podcast ADD COLUMN lastModified TEXT")
+                db.execSQL("ALTER TABLE podcast ADD COLUMN lastCheckedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE podcast ADD COLUMN notifyNew INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE episode ADD COLUMN guid TEXT")
+                db.execSQL("ALTER TABLE episode ADD COLUMN isNew INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episode_podcastId_guid ON episode (podcastId, guid)")
+            }
+        }
 
         /** Adds the subscribed flag; every podcast that already exists stays subscribed. */
         private val MIGRATION_1_2 = object : Migration(1, 2) {

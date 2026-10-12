@@ -4,9 +4,6 @@ Ideas and loose ends that are not done yet.
 
 ## Planned
 
-- **Refresh feeds so new episodes show up.** Episodes are fetched only when you subscribe, so a
-  podcast never gets new ones. Needs a refresh when opening a podcast, pull-to-refresh, and
-  ideally a periodic background refresh. This is the most important gap.
 - **Text size setting.** Offer *Compact*, *Regular* and *Large* for the lists, like Gmail's display
   density. The episode lists currently use one compact size, defined in one place
   (`EpisodeListStyle` in `ui/Screens.kt`), so a setting only has to swap those values.
@@ -19,6 +16,8 @@ Ideas and loose ends that are not done yet.
 
 ## Small stuff
 
+- Show when each podcast was last checked, and a "mark all as seen" for the new-episode dots.
+- One setting to turn all new-episode notifications on or off.
 - Highlight the right bottom tab while viewing a transcript.
 - Show a description on the page of a podcast you already follow.
 - A mini player bar so playback can be controlled from any screen.

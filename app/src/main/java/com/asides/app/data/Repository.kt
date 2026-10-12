@@ -1,7 +1,10 @@
 package com.asides.app.data
 
+import android.util.Log
+import androidx.room.withTransaction
 import com.asides.app.service.Transcriber
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -14,7 +17,19 @@ import java.util.Locale
 
 data class SearchResult(val title: String, val feedUrl: String, val artworkUrl: String?)
 
+/** A podcast that gained episodes in a refresh. [titles] are newest first. */
+data class NewEpisodes(val podcast: Podcast, val titles: List<String>, val firstEpisodeId: Long?)
+
+/** A downloaded feed; [feed] is null when the server said nothing had changed. */
+private class Fetched(val feed: ParsedFeed?, val etag: String?, val lastModified: String?)
+
 class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File) {
+
+    private companion object {
+        const val TAG = "Asides"
+        /** Don't re-check a feed more often than this unless the user asks (pull-to-refresh). */
+        const val STALE_AFTER_MS = 30 * 60 * 1000L
+    }
 
     val podcasts = db.podcasts().podcasts()
     fun podcast(id: Long) = db.podcasts().podcastFlow(id)
@@ -23,6 +38,8 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     fun annotation(id: Long) = db.annotations().flow(id)
     fun annotationsFor(episodeId: Long) = db.annotations().forEpisode(episodeId)
     val allAnnotations = db.annotations().allRows()
+    /** Per podcast, how many episodes a refresh found that haven't been opened yet. */
+    val newCounts = db.episodes().newCounts().map { rows -> rows.associate { it.podcastId to it.count } }
 
     /** Searches the Apple/iTunes podcast directory. */
     suspend fun search(term: String): List<SearchResult> = withContext(Dispatchers.IO) {
@@ -72,11 +89,23 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         }.distinctBy { it.feedUrl }.also { topCache = it }
     }
 
-    private fun fetchFeed(feedUrl: String): ParsedFeed =
-        http.newCall(Request.Builder().url(feedUrl).build()).execute().use { resp ->
+    /**
+     * Downloads and parses a feed. Given the validators from the last download, the server can answer
+     * "not modified", which skips the (sometimes multi-megabyte) transfer and the parse.
+     */
+    private fun fetch(feedUrl: String, etag: String? = null, lastModified: String? = null): Fetched {
+        val request = Request.Builder().url(feedUrl).apply {
+            etag?.let { header("If-None-Match", it) }
+            lastModified?.let { header("If-Modified-Since", it) }
+        }.build()
+        return http.newCall(request).execute().use { resp ->
+            if (resp.code == 304) return@use Fetched(null, etag, lastModified)
             check(resp.isSuccessful) { "Feed returned HTTP ${resp.code}" }
-            FeedParser.parse(resp.body!!.byteStream())
+            Fetched(FeedParser.parse(resp.body!!.byteStream()), resp.header("ETag"), resp.header("Last-Modified"))
         }
+    }
+
+    private fun fetchFeed(feedUrl: String): ParsedFeed = fetch(feedUrl).feed!!
 
     private val previewCache = HashMap<String, ParsedFeed>()
 
@@ -93,18 +122,106 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
 
     /** Subscribes to a feed (or refreshes it if already subscribed). Returns the podcast id. */
     suspend fun subscribe(feedUrl: String): Long = withContext(Dispatchers.IO) {
-        val feed = fetchFeed(feedUrl)
+        val fetched = fetch(feedUrl)
+        val feed = fetched.feed!!
         val dao = db.podcasts()
         dao.insert(Podcast(title = feed.title.ifEmpty { feedUrl }, feedUrl = feedUrl, artworkUrl = feed.artworkUrl))
         val id = dao.idForFeed(feedUrl)!!
-        // Re-subscribing refreshes the title and artwork of an existing podcast.
-        dao.updateInfo(id, feed.title.ifEmpty { feedUrl }, feed.artworkUrl)
         dao.setSubscribed(id, true)
-        db.episodes().insertAll(feed.episodes.map {
-            Episode(podcastId = id, title = it.title, pubDate = it.pubDate, audioUrl = it.audioUrl, durationMs = it.durationMs)
-        })
+        // The very first download isn't "new": flagging a show's whole back catalogue would be noise.
+        applyFeed(id, feed, fetched, firstDownload = db.episodes().count(id) == 0)
         id
     }
+
+    /**
+     * Stores a downloaded feed: genuinely new episodes are added (flagged "new" unless this is the first
+     * download) and episodes we already have are matched and fixed up rather than duplicated.
+     * Returns the episodes that were added.
+     */
+    private suspend fun applyFeed(podcastId: Long, feed: ParsedFeed, fetched: Fetched, firstDownload: Boolean): List<Episode> =
+        db.withTransaction {
+            val episodes = db.episodes()
+            val plan = EpisodeMerge.plan(episodes.known(podcastId), feed.episodes)
+            val rows = plan.inserts.map {
+                Episode(
+                    podcastId = podcastId, title = it.title, pubDate = it.pubDate, audioUrl = it.audioUrl,
+                    durationMs = it.durationMs, guid = it.guid, isNew = !firstDownload,
+                )
+            }
+            val ids = episodes.insertAll(rows)
+            plan.updates.forEach { episodes.updateIdentity(it.id, it.guid, it.audioUrl) }
+            val existing = db.podcasts().podcast(podcastId)
+            db.podcasts().updateAfterFetch(
+                podcastId,
+                title = feed.title.ifEmpty { existing?.title.orEmpty() },
+                artworkUrl = feed.artworkUrl ?: existing?.artworkUrl,
+                etag = fetched.etag, lastModified = fetched.lastModified, at = System.currentTimeMillis(),
+            )
+            rows.zip(ids).filter { it.second != -1L }.map { (row, id) -> row.copy(id = id) }
+        }
+
+    private val refreshLock = Mutex()
+
+    private suspend fun refreshOne(p: Podcast): List<Episode> = withContext(Dispatchers.IO) {
+        val fetched = fetch(p.feedUrl, p.etag, p.lastModified)
+        val feed = fetched.feed
+        if (feed == null) {
+            Log.d(TAG, "${p.title}: feed unchanged (304), nothing downloaded")
+            db.podcasts().markChecked(p.id, System.currentTimeMillis())
+            emptyList()
+        } else {
+            applyFeed(p.id, feed, fetched, firstDownload = false).also {
+                Log.d(TAG, "${p.title}: downloaded ${feed.episodes.size} episodes, ${it.size} new")
+            }
+        }
+    }
+
+    private fun summarize(p: Podcast, added: List<Episode>): NewEpisodes {
+        val newestFirst = added.sortedByDescending { it.pubDate }
+        return NewEpisodes(p, newestFirst.map { it.title }, newestFirst.singleOrNull()?.id)
+    }
+
+    /**
+     * Re-checks every subscribed podcast for new episodes. Unless [force], podcasts checked in the last
+     * half hour are skipped. Returns the podcasts that gained episodes. A feed that can't be reached
+     * (offline, broken) is skipped quietly; the next refresh tries again.
+     */
+    suspend fun refreshAll(force: Boolean = false): List<NewEpisodes> = refreshLock.withLock {
+        val found = ArrayList<NewEpisodes>()
+        for (p in db.podcasts().subscribedNow()) {
+            if (!force && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) continue
+            val added = try {
+                refreshOne(p)
+            } catch (e: Exception) {
+                Log.w(TAG, "refresh failed for ${p.title}: ${e.message}")
+                continue
+            }
+            if (added.isNotEmpty()) found += summarize(p, added)
+        }
+        found
+    }
+
+    /** Re-checks one podcast, for pull-to-refresh on its page and when it is opened. */
+    suspend fun refreshPodcast(podcastId: Long, force: Boolean = false) = refreshLock.withLock {
+        val p = db.podcasts().podcast(podcastId) ?: return@withLock
+        if (!force && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) return@withLock
+        try { refreshOne(p) } catch (e: Exception) { Log.w(TAG, "refresh failed for ${p.title}: ${e.message}") }
+    }
+
+    /**
+     * Test aid for debug builds: forgets each podcast's newest [count] episodes and its cache
+     * validators and switches notifications on, so the next refresh finds them as new.
+     */
+    suspend fun simulateNewEpisodes(count: Int) {
+        for (p in db.podcasts().subscribedNow()) {
+            db.episodes().deleteNewest(p.id, count)
+            db.podcasts().resetForRefreshTest(p.id)
+        }
+    }
+
+    suspend fun markSeen(episodeId: Long) = db.episodes().markSeen(episodeId)
+
+    suspend fun setNotify(podcastId: Long, notify: Boolean) = db.podcasts().setNotify(podcastId, notify)
 
     /** Removes a podcast from the library but keeps its episodes and asides; subscribing again restores it. */
     suspend fun unsubscribe(feedUrl: String) {
