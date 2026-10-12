@@ -2,7 +2,14 @@ package com.asides.app
 
 import android.Manifest
 import android.os.Build
+import android.content.ComponentName
 import android.content.Intent
+import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionToken
+import com.asides.app.service.PlaybackService
+import com.asides.app.service.PlayerCommands
 import android.os.Bundle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +82,31 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingRoute = intent.getStringExtra(Notifier.EXTRA_ROUTE)
+        sendDebugPlayerCommand(intent)
+    }
+
+    /**
+     * Debug builds only: `--es debug_command BACK_10|FORWARD_30|RESTART|NEXT_EPISODE` sends that command
+     * to the playback session through an ordinary media controller, which is the path the lock-screen
+     * card and notification use, so the buttons can be tried without touching the screen.
+     */
+    private fun sendDebugPlayerCommand(intent: Intent) {
+        val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val name = intent.getStringExtra("debug_command")?.takeIf { debuggable } ?: return
+        val action = when (name) {
+            "BACK_10" -> PlayerCommands.BACK_10
+            "FORWARD_30" -> PlayerCommands.FORWARD_30
+            "RESTART" -> PlayerCommands.RESTART
+            "NEXT_EPISODE" -> PlayerCommands.NEXT_EPISODE
+            else -> return
+        }
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        future.addListener({
+            val controller = future.get()
+            controller.sendCustomCommand(SessionCommand(action, Bundle.EMPTY), Bundle.EMPTY)
+                .addListener({ controller.release() }, ContextCompat.getMainExecutor(this))
+        }, ContextCompat.getMainExecutor(this))
     }
 
     override fun onStart() {
@@ -100,6 +132,7 @@ class MainActivity : ComponentActivity() {
         val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         val retry = if (debuggable) intent.getStringExtra("retranscribe") else null
         pendingRoute = intent.getStringExtra(Notifier.EXTRA_ROUTE)
+        sendDebugPlayerCommand(intent)
         // Debug builds only: `--es refresh_test 2` forgets each podcast's newest 2 episodes, turns
         // notifications on, and runs the background refresh once, so the whole chain can be tried.
         val refreshTest = if (debuggable) intent.getStringExtra("refresh_test")?.toIntOrNull() else null

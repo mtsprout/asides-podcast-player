@@ -15,10 +15,18 @@ import android.view.KeyEvent
 import androidx.core.content.IntentCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.core.app.NotificationCompat
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.DefaultMediaNotificationProvider
+import androidx.media3.session.MediaNotification
+import com.asides.app.R
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
+import androidx.media3.session.CommandButton
 import androidx.media3.session.SessionCommand
+import com.google.common.collect.ImmutableList
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -30,6 +38,54 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * The playback notification, laid out like the lock-screen card: start, -10, play/pause, +30, next
+ * episode. (The session lists the custom actions as: -10, +30, start, next.) Collapsed, it shows the
+ * middle three.
+ */
+@OptIn(UnstableApi::class)
+private class AsidesNotificationProvider(context: Context) : DefaultMediaNotificationProvider(context) {
+    override fun getMediaButtons(
+        session: MediaSession,
+        playerCommands: Player.Commands,
+        customLayout: ImmutableList<CommandButton>,
+        showPauseButton: Boolean,
+    ): ImmutableList<CommandButton> {
+        if (customLayout.size != 4) return super.getMediaButtons(session, playerCommands, customLayout, showPauseButton)
+        val playPause = CommandButton.Builder(if (showPauseButton) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY)
+            .setDisplayName(if (showPauseButton) "Pause" else "Play")
+            .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+            .build()
+        return ImmutableList.of(customLayout[2], customLayout[0], playPause, customLayout[1], customLayout[3])
+    }
+
+    override fun addNotificationActions(
+        mediaSession: MediaSession,
+        mediaButtons: ImmutableList<CommandButton>,
+        builder: NotificationCompat.Builder,
+        actionFactory: MediaNotification.ActionFactory,
+    ): IntArray {
+        val defaults = super.addNotificationActions(mediaSession, mediaButtons, builder, actionFactory)
+        return if (mediaButtons.size == 5) intArrayOf(1, 2, 3) else defaults
+    }
+}
+
+/**
+ * The player as the media session shows it to the system: without the standard "previous" and "next"
+ * commands, so the lock-screen card uses those slots for our own buttons instead.
+ */
+private class WithoutSkipCommands(player: Player) : ForwardingPlayer(player) {
+    private val hidden = intArrayOf(
+        Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_NEXT,
+        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+    )
+
+    override fun getAvailableCommands(): Player.Commands =
+        super.getAvailableCommands().buildUpon().removeAll(*hidden).build()
+
+    override fun isCommandAvailable(command: Int): Boolean = availableCommands.contains(command)
+}
 
 /**
  * Owns the player and the media session. Because this is a foreground service it keeps running
@@ -79,7 +135,7 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .setSeekForwardIncrementMs(30_000)
-            .setSeekBackIncrementMs(15_000)
+            .setSeekBackIncrementMs(10_000)
             .build()
         // Restore the speed chosen last time.
         player.setPlaybackSpeed(getSharedPreferences("prefs", MODE_PRIVATE).getFloat("speed", 1f))
@@ -108,14 +164,40 @@ class PlaybackService : MediaSessionService() {
         clearSleepTimer()
         scope.launch { repo.transcribePending(app.transcriber) }
 
-        session = MediaSession.Builder(this, player)
+        // The lock-screen card is built from the session's playback state. Android puts the standard
+        // previous/next actions beside play/pause, and fills the remaining slots from the custom actions
+        // in order: first the left-of-centre slot, then right-of-centre, then the two outer slots.
+        // With previous/next withdrawn (see [WithoutSkipCommands]) the card therefore reads
+        //     start  -10  play/pause  +30  next episode
+        // when the custom actions are listed as: -10, +30, start, next.
+        fun button(icon: Int, name: String, command: String) = CommandButton.Builder(icon)
+            .setDisplayName(name)
+            .setSessionCommand(SessionCommand(command, Bundle.EMPTY))
+            .build()
+        val buttons = ImmutableList.of(
+            button(CommandButton.ICON_SKIP_BACK_10, "Back 10 seconds", PlayerCommands.BACK_10),
+            button(CommandButton.ICON_SKIP_FORWARD_30, "Forward 30 seconds", PlayerCommands.FORWARD_30),
+            button(CommandButton.ICON_PREVIOUS, "Back to the beginning", PlayerCommands.RESTART),
+            button(CommandButton.ICON_NEXT, "Next episode", PlayerCommands.NEXT_EPISODE),
+        )
+
+        setMediaNotificationProvider(AsidesNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_notification) })
+
+        @Suppress("DEPRECATION") // the ordered list is what the system card reads
+        session = MediaSession.Builder(this, WithoutSkipCommands(player))
+            .setCustomLayout(buttons)
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,
                 ): MediaSession.ConnectionResult {
                     val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
-                        .add(SessionCommand(SleepTimer.COMMAND, Bundle.EMPTY)).build()
+                        .add(SessionCommand(SleepTimer.COMMAND, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.BACK_10, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.FORWARD_30, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.RESTART, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.NEXT_EPISODE, Bundle.EMPTY))
+                        .build()
                     return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailableSessionCommands(commands).build()
                 }
@@ -126,10 +208,15 @@ class PlaybackService : MediaSessionService() {
                     customCommand: SessionCommand,
                     args: Bundle,
                 ): ListenableFuture<SessionResult> {
-                    if (customCommand.customAction == SleepTimer.COMMAND) {
-                        setSleepTimer(args.getInt(SleepTimer.ARG_MINUTES))
-                        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    when (customCommand.customAction) {
+                        SleepTimer.COMMAND -> setSleepTimer(args.getInt(SleepTimer.ARG_MINUTES))
+                        PlayerCommands.BACK_10 -> player.seekBack()
+                        PlayerCommands.FORWARD_30 -> player.seekForward()
+                        PlayerCommands.RESTART -> player.seekTo(0)
+                        PlayerCommands.NEXT_EPISODE -> skipToNextEpisode()
+                        else -> return super.onCustomCommand(session, controller, customCommand, args)
                     }
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     return super.onCustomCommand(session, controller, customCommand, args)
                 }
 
@@ -283,8 +370,23 @@ class PlaybackService : MediaSessionService() {
             .remove(SleepTimer.PREF_AT).remove(SleepTimer.PREF_END_OF_EPISODE).apply()
     }
 
-    /** Starts the next unplayed episode after [finishedId], if there is one. Runs off the main thread. */
-    private suspend fun playNextAfter(finishedId: Long, newestFirst: Boolean) {
+    /** The "next episode" button: keep our place in this episode, then start the next unplayed one. */
+    private fun skipToNextEpisode() {
+        val id = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val position = player.currentPosition
+        val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
+        val newestFirst = getSharedPreferences("prefs", MODE_PRIVATE).getBoolean("newestFirst", false)
+        scope.launch {
+            (application as AsidesApp).repo.savePosition(id, position, duration)
+            playNextAfter(id, newestFirst, onlyIfEnded = false)
+        }
+    }
+
+    /**
+     * Starts the next unplayed episode after [finishedId], if there is one. Runs off the main thread.
+     * With [onlyIfEnded] it does nothing unless that episode has actually finished (autoplay).
+     */
+    private suspend fun playNextAfter(finishedId: Long, newestFirst: Boolean, onlyIfEnded: Boolean = true) {
         val repo = (application as AsidesApp).repo
         val next = repo.nextEpisode(finishedId, newestFirst) ?: return
         val item = mediaItemFor(next, repo.podcastNow(next.podcastId))
@@ -292,7 +394,8 @@ class PlaybackService : MediaSessionService() {
         Log.d(TAG, "autoplay: ${next.title}")
         withContext(Dispatchers.Main) {
             // Only if nothing else has been started in the meantime.
-            if (player.currentMediaItem?.mediaId?.toLongOrNull() == finishedId && player.playbackState == Player.STATE_ENDED) {
+            val stillThere = player.currentMediaItem?.mediaId?.toLongOrNull() == finishedId
+            if (stillThere && (!onlyIfEnded || player.playbackState == Player.STATE_ENDED)) {
                 player.setMediaItem(item, next.positionMs)
                 player.prepare()
                 player.play()
