@@ -7,8 +7,9 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, replay them, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: an early, personal project (version 0.1.0). It works and gets daily use, but expect rough
-> edges. Android only.
+> Status: **beta** (1.0.0-beta1). Everything described here works and gets daily use, but it is new
+> enough that you may hit rough edges. Please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
+> if you do. Android only.
 
 ## What it does
 
@@ -62,10 +63,11 @@ some earbuds add for about a second.
 
 ## Download
 
-Grab the latest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases/latest)
-and install it yourself ("sideloading"). Asides is not on the Play Store.
+Grab the newest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases)
+(the one at the top; betas are marked *Pre-release*) and install it yourself ("sideloading").
+Asides is not on the Play Store.
 
-1. On your phone, download `Asides-<version>.apk` from the latest release.
+1. On your phone, download `Asides-<version>.apk` from the release.
 2. Open the file. Android will ask to let your browser (or Files app) install apps; allow it for
    this one install. If Play Protect warns about an unrecognized developer, choose **Install
    anyway**: the app is open source and you can read or build every line of it.
