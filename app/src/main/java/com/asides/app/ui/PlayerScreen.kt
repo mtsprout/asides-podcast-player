@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -96,8 +98,8 @@ fun EpisodeScreen(
     // What will play next, in the order the podcast's page lists episodes.
     val context = LocalContext.current
     val newestFirst = remember { context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
-    val upNext by produceState<Episode?>(null, episode?.id, episode?.played, player.autoplay) {
-        value = if (player.autoplay) episode?.let { repo.nextEpisode(it.id, newestFirst) } else null
+    val nextEpisode by produceState<Episode?>(null, episode?.id, episode?.played) {
+        value = episode?.let { repo.nextEpisode(it.id, newestFirst) }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -114,7 +116,19 @@ fun EpisodeScreen(
         }
         val e = episode ?: return@Column
         when (tab) {
-            0 -> PlayingTab(e, podcast, upNext, player) { scope.launch { repo.setPlayed(e.id, !e.played) } }
+            0 -> PlayingTab(
+                e, podcast, nextEpisode, player,
+                onNext = {
+                    nextEpisode?.let { next ->
+                        scope.launch {
+                            // Keep our place in this episode before moving on.
+                            if (player.currentEpisodeId == e.id) repo.savePosition(e.id, player.positionMs, player.durationMs)
+                            player.play(next, podcast)
+                        }
+                    }
+                },
+                onTogglePlayed = { scope.launch { repo.setPlayed(e.id, !e.played) } },
+            )
             1 -> DetailsTab(repo, e, podcast)
             else -> AnnotationList(
                 annotations, player,
@@ -131,7 +145,14 @@ fun EpisodeScreen(
 }
 
 @Composable
-private fun PlayingTab(e: Episode, podcast: Podcast?, upNext: Episode?, player: PlayerConnection, onTogglePlayed: () -> Unit) {
+private fun PlayingTab(
+    e: Episode,
+    podcast: Podcast?,
+    nextEpisode: Episode?,
+    player: PlayerConnection,
+    onNext: () -> Unit,
+    onTogglePlayed: () -> Unit,
+) {
     val context = LocalContext.current
     val active = player.currentEpisodeId == e.id
     LaunchedEffect(active) { while (active) { player.poll(); delay(500) } }
@@ -162,6 +183,10 @@ private fun PlayingTab(e: Episode, podcast: Podcast?, upNext: Episode?, player: 
             Text("-" + formatTime((duration - position).coerceAtLeast(0)), style = MaterialTheme.typography.labelLarge)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            // Small double arrows at the two ends: back to the start of this episode, and on to the next one.
+            IconButton(modifier = Modifier.size(44.dp), enabled = active, onClick = { player.seekTo(0) }) {
+                Icon(Icons.Default.KeyboardDoubleArrowLeft, "Back to the beginning", Modifier.size(28.dp))
+            }
             IconButton(modifier = Modifier.size(64.dp), enabled = active, onClick = { player.skip(-10_000) }) {
                 Icon(Icons.Default.Replay10, "Back 10 seconds", Modifier.size(40.dp))
             }
@@ -177,6 +202,9 @@ private fun PlayingTab(e: Episode, podcast: Podcast?, upNext: Episode?, player: 
             }
             IconButton(modifier = Modifier.size(64.dp), enabled = active, onClick = { player.skip(30_000) }) {
                 Icon(Icons.Default.Forward30, "Forward 30 seconds", Modifier.size(40.dp))
+            }
+            IconButton(modifier = Modifier.size(44.dp), enabled = nextEpisode != null, onClick = onNext) {
+                Icon(Icons.Default.KeyboardDoubleArrowRight, "Next episode", Modifier.size(28.dp))
             }
         }
 
@@ -213,7 +241,7 @@ private fun PlayingTab(e: Episode, podcast: Podcast?, upNext: Episode?, player: 
                 }
             }
         }
-        upNext?.let {
+        if (player.autoplay) nextEpisode?.let {
             Text(
                 "Up next: ${it.title}", style = MaterialTheme.typography.bodyMedium, maxLines = 2,
                 overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,

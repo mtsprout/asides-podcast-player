@@ -18,7 +18,8 @@ screen off, so it fits walks, drives and chores.
   lists everything grouped by podcast, then episode (oldest first), then aside.
 - **Find podcasts.** Search the Apple Podcasts directory, browse the top 10, or paste an RSS feed
   URL. Tap a podcast to preview its description and recent episodes before subscribing.
-- **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, remaining
+- **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
+  the start of the episode and » to skip to the next one, remaining
   time, a speed picker (0.5x to 2.0x), a sleep timer (including "end of episode"), and share.
 - **Episode list tools.** Oldest-first by default, sorting, hide played, mark played, and range
   selection: long-press one episode, scroll, long-press another to select everything between.
