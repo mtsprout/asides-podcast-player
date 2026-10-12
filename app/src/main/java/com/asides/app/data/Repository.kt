@@ -188,7 +188,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             db.podcasts().markChecked(p.id, System.currentTimeMillis())
             emptyList()
         } else {
-            applyFeed(p.id, feed, fetched, firstDownload = false).also {
+            applyFeed(p.id, feed, fetched, firstDownload = p.lastCheckedAt < 0).also {
                 Log.d(TAG, "${p.title}: downloaded ${feed.episodes.size} episodes, ${it.size} new")
             }
         }
@@ -333,8 +333,10 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
                 if (p.subscribed) podcastDao.setSubscribed(existing, true)
                 existing
             } else {
+                // lastCheckedAt = -1 marks "restored, never downloaded": the first refresh fills in the rest of
+                // the episodes quietly instead of flagging the whole back catalogue as new.
                 podcastDao.insert(Podcast(title = p.title, feedUrl = p.feedUrl, artworkUrl = p.artworkUrl,
-                    subscribed = p.subscribed, notifyNew = p.notifyNew))
+                    subscribed = p.subscribed, notifyNew = p.notifyNew, lastCheckedAt = -1))
                 podcastsAdded++
                 podcastDao.idForFeed(p.feedUrl)!!
             }
