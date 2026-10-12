@@ -41,6 +41,26 @@ but not yet tested on a real wired headset). A recording also stops
 on its own after 60 seconds. After a double- or triple-tap, Asides ignores the stray play/pause
 some earbuds add for about a second.
 
+## Download
+
+Grab the latest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases/latest)
+and install it yourself ("sideloading"). Asides is not on the Play Store.
+
+1. On your phone, download `Asides-<version>.apk` from the latest release.
+2. Open the file. Android will ask to let your browser (or Files app) install apps; allow it for
+   this one install. If Play Protect warns about an unrecognized developer, choose **Install
+   anyway**: the app is open source and you can read or build every line of it.
+3. Open Asides and allow the **microphone** and **notifications** when asked.
+
+Every release is signed with the same key, so later releases install over earlier ones and keep
+your subscriptions and asides. Sideloaded apps don't update themselves; come back to the Releases
+page when you want a newer version. To check what you downloaded, compare its SHA-256 with the one
+on the release page, and the signing certificate with this fingerprint:
+
+```
+SHA-256: A0:05:47:B4:90:A9:89:E4:4A:01:83:F4:FE:5A:6D:60:93:74:D8:2E:41:2A:39:BB:E3:00:5F:93:A2:71:5D:43
+```
+
 ## Requirements
 
 - Android 8.0 (API 26) or newer.
@@ -49,11 +69,12 @@ some earbuds add for about a second.
 
 ## Build and install
 
-You need JDK 17 or newer and the Android SDK (platform 35).
+You need JDK 17 or newer and the Android SDK (platform 35). The steps below make a debug build.
+Release builds need a signing key of your own (see `app/build.gradle.kts`).
 
 ```sh
-git clone <this repository>
-cd <this repository>
+git clone https://github.com/mtsprout/asides-podcast-player.git
+cd asides-podcast-player
 echo "sdk.dir=/path/to/your/Android/sdk" > local.properties   # Android Studio does this for you
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
