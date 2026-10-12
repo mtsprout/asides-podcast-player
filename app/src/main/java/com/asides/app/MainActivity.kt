@@ -61,11 +61,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.asides.app.ui.AllAnnotationsScreen
+import com.asides.app.ui.AppSettings
 import com.asides.app.ui.AsidesTheme
 import com.asides.app.ui.EpisodeScreen
 import com.asides.app.ui.LibraryScreen
 import com.asides.app.ui.PlayerConnection
 import com.asides.app.ui.PodcastScreen
+import com.asides.app.ui.SettingsScreen
 import com.asides.app.ui.PreviewScreen
 import com.asides.app.ui.TranscriptScreen
 
@@ -139,6 +141,21 @@ class MainActivity : ComponentActivity() {
         // Debug builds only: `--es debug_subscribe url1,url2` subscribes to feeds without any tapping.
         val debugFeeds = if (debuggable) intent.getStringExtra("debug_subscribe")?.split(",") else null
         debugFeeds?.let { feeds -> lifecycleScope.launch { feeds.forEach { runCatching { repo.subscribe(it.trim()) } } } }
+        // Debug builds only: `--es debug_export name.zip` / `--es debug_import name.zip` run a backup or restore
+        // against a file in the app's cache folder, so the logic can be tested without the file picker.
+        val exportName = if (debuggable) intent.getStringExtra("debug_export") else null
+        val importName = if (debuggable) intent.getStringExtra("debug_import") else null
+        lifecycleScope.launch {
+            exportName?.let {
+                val file = java.io.File(cacheDir, it)
+                file.outputStream().use { out -> repo.exportBackup(out, AppSettings.snapshot(), "debug") }
+                android.util.Log.d("Asides", "debug_export: wrote ${file.length()} bytes to $it")
+            }
+            importName?.let {
+                val summary = java.io.File(cacheDir, it).inputStream().use { input -> repo.importBackup(input) }
+                android.util.Log.d("Asides", "debug_import: $summary")
+            }
+        }
         skipStartupRefresh = refreshTest != null
         if (refreshTest != null) {
             lifecycleScope.launch {
@@ -199,7 +216,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = route == "library" || route.startsWith("podcast") || route.startsWith("episode") || route.startsWith("preview"),
+                    selected = route == "library" || route.startsWith("podcast") || route.startsWith("episode") || route.startsWith("preview") || route == "settings",
                     onClick = { nav.navigateTab("library") },
                     icon = { Icon(Icons.Default.Podcasts, null) },
                     label = { Text("Library") },
@@ -221,8 +238,10 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                     onOpenPreview = {
                         nav.navigate("preview?feed=${Uri.encode(it.feedUrl)}&title=${Uri.encode(it.title)}&art=${Uri.encode(it.artworkUrl.orEmpty())}")
                     },
+                    onOpenSettings = { nav.navigate("settings") },
                 )
             }
+            composable("settings") { SettingsScreen(repo, player) }
             composable(
                 "preview?feed={feed}&title={title}&art={art}",
                 arguments = listOf("feed", "title", "art").map {

@@ -23,6 +23,9 @@ interface PodcastDao {
     @Query("SELECT * FROM podcast WHERE subscribed = 1")
     suspend fun subscribedNow(): List<Podcast>
 
+    @Query("SELECT * FROM podcast")
+    suspend fun all(): List<Podcast>
+
     @Query("SELECT * FROM podcast WHERE id = :id")
     suspend fun podcast(id: Long): Podcast?
 
@@ -80,6 +83,10 @@ interface EpisodeDao {
     @Query("SELECT COUNT(*) FROM episode WHERE podcastId = :podcastId")
     suspend fun count(podcastId: Long): Int
 
+    /** Episodes with something worth keeping in a backup: played, partly played, or with asides. */
+    @Query("SELECT * FROM episode WHERE played = 1 OR positionMs > 0 OR id IN (SELECT episodeId FROM annotation)")
+    suspend fun withState(): List<Episode>
+
     /** Test aid: drop a podcast's newest episodes so a refresh will find them again as new. */
     @Query("DELETE FROM episode WHERE id IN (SELECT id FROM episode WHERE podcastId = :podcastId ORDER BY pubDate DESC LIMIT :count)")
     suspend fun deleteNewest(podcastId: Long, count: Int)
@@ -130,6 +137,12 @@ interface AnnotationDao {
 
     @Query("SELECT * FROM annotation WHERE id = :id")
     suspend fun get(id: Long): Annotation?
+
+    @Query("SELECT * FROM annotation ORDER BY id")
+    suspend fun allNow(): List<Annotation>
+
+    @Query("SELECT * FROM annotation WHERE episodeId = :episodeId")
+    suspend fun forEpisodeNow(episodeId: Long): List<Annotation>
 
     @Query("SELECT * FROM annotation WHERE id = :id")
     fun flow(id: Long): Flow<Annotation?>

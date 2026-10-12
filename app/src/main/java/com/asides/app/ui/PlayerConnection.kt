@@ -44,6 +44,13 @@ class PlayerConnection(private val context: Context) {
     var autoplay by mutableStateOf(context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getBoolean(Autoplay.PREF, true))
         private set
 
+    /** Re-reads settings that a restore may have changed. */
+    fun reloadSettings() {
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        autoplay = prefs.getBoolean(Autoplay.PREF, true)
+        changeSpeed(prefs.getFloat("speed", 1f))
+    }
+
     fun toggleAutoplay() {
         autoplay = !autoplay
         context.getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putBoolean(Autoplay.PREF, autoplay).apply()

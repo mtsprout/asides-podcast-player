@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -146,14 +147,30 @@ internal fun Artwork(url: String?, size: androidx.compose.ui.unit.Dp, modifier: 
 // ---------------------------------------------------------------- Library
 
 /**
- * Text styles and spacing for episode lists. Kept in one place so a compact / regular / large
- * setting can drive them later (see ROADMAP.md).
+ * Text styles and spacing for episode lists, driven by the Compact / Regular / Large setting
+ * ([AppSettings.listDensity]). Compact is the default.
  */
-private object EpisodeListStyle {
-    val title @Composable get() = MaterialTheme.typography.bodyMedium
-    val meta @Composable get() = MaterialTheme.typography.labelSmall
-    val rowPadding = 6.dp
-    val checkButtonSize = 40.dp
+internal object EpisodeListStyle {
+    val title @Composable get() = when (AppSettings.listDensity) {
+        ListDensity.Compact -> MaterialTheme.typography.bodyMedium
+        ListDensity.Regular -> MaterialTheme.typography.bodyLarge
+        ListDensity.Large -> MaterialTheme.typography.titleMedium
+    }
+    val meta @Composable get() = when (AppSettings.listDensity) {
+        ListDensity.Compact -> MaterialTheme.typography.labelSmall
+        ListDensity.Regular -> MaterialTheme.typography.bodySmall
+        ListDensity.Large -> MaterialTheme.typography.bodyMedium
+    }
+    val rowPadding get() = when (AppSettings.listDensity) {
+        ListDensity.Compact -> 6.dp
+        ListDensity.Regular -> 10.dp
+        ListDensity.Large -> 14.dp
+    }
+    val checkButtonSize get() = when (AppSettings.listDensity) {
+        ListDensity.Compact -> 40.dp
+        ListDensity.Regular -> 44.dp
+        ListDensity.Large -> 48.dp
+    }
 }
 
 private val FullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
@@ -188,11 +205,16 @@ private fun TileArtwork(url: String?) {
 private fun SectionTitle(text: String) =
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
-private fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
+internal fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview: (SearchResult) -> Unit) {
+fun LibraryScreen(
+    repo: Repository,
+    onOpenPodcast: (Long) -> Unit,
+    onOpenPreview: (SearchResult) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val podcasts by repo.podcasts.collectAsState(emptyList())
     val subscribed = remember(podcasts) { podcasts.map { it.feedUrl }.toSet() }
     val asideCount by remember { repo.allAnnotations.map { it.size } }.collectAsState(0)
@@ -254,8 +276,12 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
         item(span = FullWidth) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Wordmark(fontSize = 44.sp, parentheses = true)
+                IconButton(onClick = onOpenSettings, Modifier.align(Alignment.CenterEnd)) {
+                    Icon(Icons.Default.Settings, "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+        if (!AppSettings.introSeen) item(span = FullWidth) { IntroCard(onDismiss = { AppSettings.markIntroSeen(true) }) }
         item(span = FullWidth) {
             TextField(
                 value = query,

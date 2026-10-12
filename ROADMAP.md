@@ -4,9 +4,6 @@ Ideas and loose ends that are not done yet.
 
 ## Planned
 
-- **Text size setting.** Offer *Compact*, *Regular* and *Large* for the lists, like Gmail's display
-  density. The episode lists currently use one compact size, defined in one place
-  (`EpisodeListStyle` in `ui/Screens.kt`), so a setting only has to swap those values.
 - **Queue** ("up next") and **starred episodes**, as in most podcast apps.
 - **Offline transcription.** Transcripts currently go through the phone's default speech
   recognizer, which is Google's speech service and may use the network. A bundled offline model
@@ -14,6 +11,8 @@ Ideas and loose ends that are not done yet.
 
 ## Small stuff
 
+- Scheduled automatic backups, and Android's own cloud backup for the app's data.
+- Text size for the whole app (today it applies to the episode lists).
 - Show when each podcast was last checked, and a "mark all as seen" for the new-episode dots.
 - One setting to turn all new-episode notifications on or off.
 - Highlight the right bottom tab while viewing a transcript.

@@ -34,6 +34,13 @@ screen off, so it fits walks, drives and chores.
   an "N new" badge on the podcast.
 - **Optional notifications.** Tap the bell on a podcast's page to be notified when it has a new
   episode. They are off by default, one notification per podcast, and tapping one opens the episode.
+- **Back up and restore.** In Settings, *Back up…* saves your asides (with their recordings and
+  transcripts), your subscriptions and your played marks to one file you can keep anywhere: Drive,
+  Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so
+  it's safe to do twice. This is the way to keep your asides if you uninstall or change phones.
+- **Text size.** Settings has Compact, Regular and Large for the episode lists.
+- **A welcome note** on the home page explains the earbud gesture to a first-time user (Settings can
+  show it again).
 - **Unsubscribing is safe.** It removes a podcast from your library but keeps its episodes and
   your asides. Subscribe again and everything comes back.
 

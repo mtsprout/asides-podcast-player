@@ -12,6 +12,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import java.net.URLEncoder
 import java.util.Locale
 
@@ -19,6 +24,18 @@ data class SearchResult(val title: String, val feedUrl: String, val artworkUrl: 
 
 /** A podcast that gained episodes in a refresh. [titles] are newest first. */
 data class NewEpisodes(val podcast: Podcast, val titles: List<String>, val firstEpisodeId: Long?)
+
+/** What an export wrote. */
+data class BackupSummary(val podcasts: Int, val asides: Int)
+
+/** What a restore did. [settings] are the saved app settings, for the caller to apply. */
+data class RestoreSummary(
+    val podcastsAdded: Int,
+    val asidesRestored: Int,
+    val asidesAlreadyHere: Int,
+    val asidesWithoutAudio: Int,
+    val settings: BackupSettings,
+)
 
 /** A downloaded feed; [feed] is null when the server said nothing had changed. */
 private class Fetched(val feed: ParsedFeed?, val etag: String?, val lastModified: String?)
@@ -29,6 +46,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         const val TAG = "Asides"
         /** Don't re-check a feed more often than this unless the user asks (pull-to-refresh). */
         const val STALE_AFTER_MS = 30 * 60 * 1000L
+        val SAFE_WAV = Regex("[0-9A-Za-z_.-]+\\.wav")
     }
 
     val podcasts = db.podcasts().podcasts()
@@ -226,6 +244,150 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     }
 
     suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
+
+    /**
+     * Writes a backup to [output]: a zip holding backup.json (first, so a restore can read it before the
+     * audio) and each aside's recording. Asides name their episode by feed and guid, not database id, so
+     * the file can be restored on another phone.
+     */
+    suspend fun exportBackup(output: OutputStream, settings: BackupSettings, appVersion: String): BackupSummary =
+        withContext(Dispatchers.IO) {
+            val podcasts = db.podcasts().all()
+            val podcastById = podcasts.associateBy { it.id }
+            val episodes = db.episodes().withState().filter { it.podcastId in podcastById }
+            val episodeById = episodes.associateBy { it.id }
+
+            val asides = db.annotations().allNow().mapNotNull { a ->
+                val ep = episodeById[a.episodeId] ?: return@mapNotNull null
+                val feed = podcastById.getValue(ep.podcastId).feedUrl
+                val hasAudio = File(a.audioPath).exists()
+                a to BackupAside(feed, ep.guid, ep.audioUrl, a.positionMs, a.createdAt, a.transcript, if (hasAudio) "audio/${a.id}.wav" else null)
+            }
+            val data = BackupData(
+                appVersion = appVersion,
+                exportedAt = System.currentTimeMillis(),
+                settings = settings,
+                podcasts = podcasts.map { BackupPodcast(it.feedUrl, it.title, it.artworkUrl, it.subscribed, it.notifyNew) },
+                episodes = episodes.map {
+                    BackupEpisode(podcastById.getValue(it.podcastId).feedUrl, it.guid, it.audioUrl, it.title, it.pubDate,
+                        it.durationMs, it.positionMs, it.played)
+                },
+                asides = asides.map { it.second },
+            )
+            ZipOutputStream(output.buffered()).use { zip ->
+                zip.putNextEntry(ZipEntry("backup.json"))
+                zip.write(BackupFormat.encode(data).toByteArray(Charsets.UTF_8))
+                zip.closeEntry()
+                for ((annotation, aside) in asides) {
+                    val name = aside.audio ?: continue
+                    zip.putNextEntry(ZipEntry(name))
+                    File(annotation.audioPath).inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+            BackupSummary(podcasts.size, asides.size)
+        }
+
+    /**
+     * Restores a backup made by [exportBackup]. It only ever adds: podcasts and episodes already here are
+     * kept as they are (a played mark or saved position is filled in only where this phone has none),
+     * and an aside that is already here is skipped, so restoring twice does no harm. Throws
+     * [BackupException] for a file that isn't a usable backup.
+     */
+    suspend fun importBackup(input: InputStream): RestoreSummary = withContext(Dispatchers.IO) {
+        val staging = File(annotationDir, ".import").apply { deleteRecursively(); mkdirs() }
+        try {
+            var json: String? = null
+            ZipInputStream(input.buffered()).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory) when {
+                        entry.name == "backup.json" -> json = zip.readBytes().toString(Charsets.UTF_8)
+                        // Only the file's own name is used, so a crafted path can't write elsewhere.
+                        entry.name.startsWith("audio/") -> File(entry.name).name.takeIf { it.matches(SAFE_WAV) }?.let { safe ->
+                            File(staging, safe).outputStream().use { zip.copyTo(it) }
+                        }
+                    }
+                    entry = zip.nextEntry
+                }
+            }
+            val data = BackupFormat.decode(json ?: throw BackupException("That file isn't an Asides backup."))
+            restore(data, staging)
+        } catch (e: java.util.zip.ZipException) {
+            throw BackupException("That file isn't an Asides backup.")
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    private suspend fun restore(data: BackupData, staging: File): RestoreSummary = db.withTransaction {
+        val podcastDao = db.podcasts()
+        val episodeDao = db.episodes()
+        val annotationDao = db.annotations()
+
+        var podcastsAdded = 0
+        val podcastIds = HashMap<String, Long>()
+        for (p in data.podcasts) {
+            val existing = podcastDao.idForFeed(p.feedUrl)
+            val id = if (existing != null) {
+                if (p.subscribed) podcastDao.setSubscribed(existing, true)
+                existing
+            } else {
+                podcastDao.insert(Podcast(title = p.title, feedUrl = p.feedUrl, artworkUrl = p.artworkUrl,
+                    subscribed = p.subscribed, notifyNew = p.notifyNew))
+                podcastsAdded++
+                podcastDao.idForFeed(p.feedUrl)!!
+            }
+            podcastIds[p.feedUrl] = id
+        }
+
+        val knownByPodcast = HashMap<Long, MutableList<KnownEpisode>>()
+        suspend fun episodeId(feedUrl: String, guid: String?, audioUrl: String, title: String, pubDate: Long, durationMs: Long): Long? {
+            val podcastId = podcastIds[feedUrl] ?: return null
+            val known = knownByPodcast.getOrPut(podcastId) { episodeDao.known(podcastId).toMutableList() }
+            BackupMatch.episode(known, guid, audioUrl)?.let { return it.id }
+            val id = episodeDao.insertAll(listOf(
+                Episode(podcastId = podcastId, title = title, pubDate = pubDate, audioUrl = audioUrl, durationMs = durationMs, guid = guid),
+            )).first().takeIf { it != -1L } ?: return null
+            known += KnownEpisode(id, guid, audioUrl, title, pubDate)
+            return id
+        }
+
+        for (e in data.episodes) {
+            val id = episodeId(e.feedUrl, e.guid, e.audioUrl, e.title, e.pubDate, e.durationMs) ?: continue
+            val current = episodeDao.episode(id) ?: continue
+            if (e.played && !current.played) episodeDao.setPlayed(id, true)
+            if (!e.played && current.positionMs == 0L && e.positionMs > 0) episodeDao.savePosition(id, e.positionMs, e.durationMs)
+        }
+
+        var restored = 0
+        var alreadyHere = 0
+        var withoutAudio = 0
+        for (a in data.asides) {
+            val info = data.episodes.firstOrNull {
+                it.feedUrl == a.feedUrl && ((a.episodeGuid != null && it.guid == a.episodeGuid) || it.audioUrl == a.episodeAudioUrl)
+            }
+            val episodeId = episodeId(a.feedUrl, a.episodeGuid, a.episodeAudioUrl, info?.title ?: "Episode", info?.pubDate ?: 0, info?.durationMs ?: 0)
+                ?: continue
+            if (BackupMatch.alreadyHave(annotationDao.forEpisodeNow(episodeId), a.positionMs, a.createdAt)) {
+                alreadyHere++
+                continue
+            }
+            val source = a.audio?.let { File(staging, File(it).name) }?.takeIf { it.exists() }
+            if (source == null) {
+                withoutAudio++
+                continue
+            }
+            var destination = File(annotationDir, "note-${a.createdAt}.wav")
+            var n = 1
+            while (destination.exists()) destination = File(annotationDir, "note-${a.createdAt}-${n++}.wav")
+            source.copyTo(destination)
+            annotationDao.insert(Annotation(episodeId = episodeId, positionMs = a.positionMs, audioPath = destination.absolutePath,
+                transcript = a.transcript, createdAt = a.createdAt))
+            restored++
+        }
+        RestoreSummary(podcastsAdded, restored, alreadyHere, withoutAudio, data.settings)
+    }
 
     suspend fun markSeen(episodeId: Long) = db.episodes().markSeen(episodeId)
 
