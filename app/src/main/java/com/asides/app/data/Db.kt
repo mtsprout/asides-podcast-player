@@ -63,6 +63,10 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE id = :id")
     suspend fun episode(id: Long): Episode?
 
+    /** The same rows, in the same order, as [episodes]; for choosing what plays next. */
+    @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY pubDate DESC")
+    suspend fun episodesNow(podcastId: Long): List<Episode>
+
     @Query("SELECT * FROM episode WHERE id = :id")
     fun episodeFlow(id: Long): Flow<Episode?>
 

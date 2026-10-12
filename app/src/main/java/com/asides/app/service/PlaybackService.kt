@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Owns the player and the media session. Because this is a foreground service it keeps running
@@ -84,11 +85,15 @@ class PlaybackService : MediaSessionService() {
         player.setPlaybackSpeed(getSharedPreferences("prefs", MODE_PRIVATE).getFloat("speed", 1f))
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED) {
-                    clearSleepTimer()
-                    player.currentMediaItem?.mediaId?.toLongOrNull()?.let { id ->
-                        scope.launch { repo.markFinished(id) }
-                    }
+                if (state != Player.STATE_ENDED) return
+                val prefs = getSharedPreferences("prefs", MODE_PRIVATE)
+                // "Sleep at the end of the episode" means stop here, not carry on to the next one.
+                val sleepAtEnd = prefs.getBoolean(SleepTimer.PREF_END_OF_EPISODE, false)
+                clearSleepTimer()
+                val id = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+                scope.launch {
+                    repo.markFinished(id)
+                    if (!sleepAtEnd && prefs.getBoolean(Autoplay.PREF, true)) playNextAfter(id, prefs.getBoolean("newestFirst", false))
                 }
             }
 
@@ -276,6 +281,23 @@ class PlaybackService : MediaSessionService() {
         player.pauseAtEndOfMediaItems = false
         getSharedPreferences("prefs", MODE_PRIVATE).edit()
             .remove(SleepTimer.PREF_AT).remove(SleepTimer.PREF_END_OF_EPISODE).apply()
+    }
+
+    /** Starts the next unplayed episode after [finishedId], if there is one. Runs off the main thread. */
+    private suspend fun playNextAfter(finishedId: Long, newestFirst: Boolean) {
+        val repo = (application as AsidesApp).repo
+        val next = repo.nextEpisode(finishedId, newestFirst) ?: return
+        val item = mediaItemFor(next, repo.podcastNow(next.podcastId))
+        repo.markSeen(next.id)
+        Log.d(TAG, "autoplay: ${next.title}")
+        withContext(Dispatchers.Main) {
+            // Only if nothing else has been started in the meantime.
+            if (player.currentMediaItem?.mediaId?.toLongOrNull() == finishedId && player.playbackState == Player.STATE_ENDED) {
+                player.setMediaItem(item, next.positionMs)
+                player.prepare()
+                player.play()
+            }
+        }
     }
 
     private fun persistPosition() {

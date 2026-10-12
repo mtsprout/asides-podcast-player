@@ -17,7 +17,9 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.asides.app.service.Autoplay
 import com.asides.app.service.SleepTimer
+import com.asides.app.service.mediaItemFor
 import com.google.common.util.concurrent.MoreExecutors
 import com.asides.app.data.Episode
 import com.asides.app.data.Podcast
@@ -37,6 +39,15 @@ class PlayerConnection(private val context: Context) {
         private set
     var speed by mutableFloatStateOf(1f)
         private set
+
+    /** Whether the next unplayed episode starts by itself when one finishes. The service reads the same setting. */
+    var autoplay by mutableStateOf(context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getBoolean(Autoplay.PREF, true))
+        private set
+
+    fun toggleAutoplay() {
+        autoplay = !autoplay
+        context.getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putBoolean(Autoplay.PREF, autoplay).apply()
+    }
 
     /** What the sleep timer is doing, for display: "12 min", "End of episode", or null when off. */
     var sleepLabel by mutableStateOf<String?>(null)
@@ -105,17 +116,7 @@ class PlayerConnection(private val context: Context) {
     fun play(episode: Episode, podcast: Podcast? = null) {
         val c = controller ?: return
         if (currentEpisodeId != episode.id) {
-            val meta = MediaMetadata.Builder()
-                .setTitle(episode.title)
-                .setArtist(podcast?.title)
-                .setArtworkUri(podcast?.artworkUrl?.let(Uri::parse))
-                .build()
-            val item = MediaItem.Builder()
-                .setMediaId(episode.id.toString())
-                .setUri(episode.audioUrl)
-                .setMediaMetadata(meta)
-                .build()
-            c.setMediaItem(item, episode.positionMs)
+            c.setMediaItem(mediaItemFor(episode, podcast), episode.positionMs)
             c.prepare()
         }
         c.play()

@@ -206,7 +206,12 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                 PodcastScreen(repo, e.arguments!!.getString("id")!!.toLong()) { nav.navigate("episode/$it") }
             }
             composable("episode/{id}") { e ->
-                EpisodeScreen(repo, e.arguments!!.getString("id")!!.toLong(), player) { nav.navigate("transcript/$it") }
+                EpisodeScreen(
+                    repo, e.arguments!!.getString("id")!!.toLong(), player,
+                    onOpenTranscript = { nav.navigate("transcript/$it") },
+                    // Autoplay moved on: show the new episode in place of this one, so Back doesn't revisit it.
+                    onSwitchEpisode = { nav.navigate("episode/$it") { popUpTo("episode/{id}") { inclusive = true } } },
+                )
             }
             composable("transcript/{id}") { e ->
                 TranscriptScreen(repo, e.arguments!!.getString("id")!!.toLong(), player)

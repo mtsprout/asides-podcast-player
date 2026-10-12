@@ -48,6 +48,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,7 +70,13 @@ import kotlin.math.abs
 
 /** One episode: the player, its show notes, and the voice annotations made on it. */
 @Composable
-fun EpisodeScreen(repo: Repository, episodeId: Long, player: PlayerConnection, onOpenTranscript: (Long) -> Unit) {
+fun EpisodeScreen(
+    repo: Repository,
+    episodeId: Long,
+    player: PlayerConnection,
+    onOpenTranscript: (Long) -> Unit,
+    onSwitchEpisode: (Long) -> Unit,
+) {
     val episode by repo.episode(episodeId).collectAsState(null)
     val annotations by repo.annotationsFor(episodeId).collectAsState(emptyList())
     var tab by remember { mutableIntStateOf(0) }
@@ -77,6 +85,20 @@ fun EpisodeScreen(repo: Repository, episodeId: Long, player: PlayerConnection, o
     // Opening an episode clears its "new" marker.
     LaunchedEffect(episode?.isNew) { if (episode?.isNew == true) repo.markSeen(episodeId) }
     val podcast by remember(podcastId) { podcastId?.let { repo.podcast(it) } ?: flowOf(null) }.collectAsState(null)
+
+    // When playback moves on to the next episode by itself, this screen follows it.
+    var wasPlayingHere by remember(episodeId) { mutableStateOf(false) }
+    LaunchedEffect(player.currentEpisodeId) {
+        if (player.currentEpisodeId == episodeId) wasPlayingHere = true
+        else if (wasPlayingHere && player.currentEpisodeId != -1L) onSwitchEpisode(player.currentEpisodeId)
+    }
+
+    // What will play next, in the order the podcast's page lists episodes.
+    val context = LocalContext.current
+    val newestFirst = remember { context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
+    val upNext by produceState<Episode?>(null, episode?.id, episode?.played, player.autoplay) {
+        value = if (player.autoplay) episode?.let { repo.nextEpisode(it.id, newestFirst) } else null
+    }
 
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tab) {
@@ -92,7 +114,7 @@ fun EpisodeScreen(repo: Repository, episodeId: Long, player: PlayerConnection, o
         }
         val e = episode ?: return@Column
         when (tab) {
-            0 -> PlayingTab(e, podcast, player) { scope.launch { repo.setPlayed(e.id, !e.played) } }
+            0 -> PlayingTab(e, podcast, upNext, player) { scope.launch { repo.setPlayed(e.id, !e.played) } }
             1 -> DetailsTab(repo, e, podcast)
             else -> AnnotationList(
                 annotations, player,
@@ -109,7 +131,7 @@ fun EpisodeScreen(repo: Repository, episodeId: Long, player: PlayerConnection, o
 }
 
 @Composable
-private fun PlayingTab(e: Episode, podcast: Podcast?, player: PlayerConnection, onTogglePlayed: () -> Unit) {
+private fun PlayingTab(e: Episode, podcast: Podcast?, upNext: Episode?, player: PlayerConnection, onTogglePlayed: () -> Unit) {
     val context = LocalContext.current
     val active = player.currentEpisodeId == e.id
     LaunchedEffect(active) { while (active) { player.poll(); delay(500) } }
@@ -180,9 +202,23 @@ private fun PlayingTab(e: Episode, podcast: Podcast?, player: PlayerConnection, 
                             },
                             onClick = { showMenu = false; onTogglePlayed() },
                         )
+                        DropdownMenuItem(
+                            text = { Text("Play next episode automatically") },
+                            leadingIcon = {
+                                Icon(if (player.autoplay) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null)
+                            },
+                            onClick = { showMenu = false; player.toggleAutoplay() },
+                        )
                     }
                 }
             }
+        }
+        upNext?.let {
+            Text(
+                "Up next: ${it.title}", style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Text(
             "Headset: triple-press play/pause to record an aside, then press once to save it. " +

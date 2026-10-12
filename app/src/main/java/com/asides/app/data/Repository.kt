@@ -219,6 +219,14 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         }
     }
 
+    /** What should play after [episodeId] finishes, or null if nothing is left to hear. */
+    suspend fun nextEpisode(episodeId: Long, newestFirst: Boolean): Episode? {
+        val current = db.episodes().episode(episodeId) ?: return null
+        return NextEpisode.pick(db.episodes().episodesNow(current.podcastId), episodeId, newestFirst)
+    }
+
+    suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
+
     suspend fun markSeen(episodeId: Long) = db.episodes().markSeen(episodeId)
 
     suspend fun setNotify(podcastId: Long, notify: Boolean) = db.podcasts().setNotify(podcastId, notify)

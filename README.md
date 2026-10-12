@@ -22,6 +22,10 @@ screen off, so it fits walks, drives and chores.
   time, a speed picker (0.5x to 2.0x), a sleep timer (including "end of episode"), and share.
 - **Episode list tools.** Oldest-first by default, sorting, hide played, mark played, and range
   selection: long-press one episode, scroll, long-press another to select everything between.
+- **Plays on by itself.** When an episode ends, the next *unplayed* episode in the podcast's list
+  order starts automatically, so a series flows from one day to the next. Mark a block as played
+  and it skips straight past it. The player shows "Up next", and you can turn this off in the
+  player's More menu. The sleep timer's "end of episode" still stops playback.
 - **New episodes show up.** Asides checks your podcasts when you open it, when you pull down to
   refresh (on the home page or a podcast's page), and in the background about every 4 hours.
   Unchanged feeds are skipped cheaply. New episodes get a blue dot, and the home page shows
@@ -114,7 +118,7 @@ go over the network:
   haven't opened in a while. Opening the app or pulling down to refresh always works.
 - Notifications need the notification permission (Android 13+), which Asides asks for on first
   launch.
-- There is no queue yet: when an episode ends, playback stops.
+- There is no queue yet: automatic play simply follows the podcast's list order.
 - Transcripts depend on your phone's recognizer and are not always accurate.
 
 See [ROADMAP.md](ROADMAP.md) for what's planned.
