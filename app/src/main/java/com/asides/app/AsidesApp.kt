@@ -1,0 +1,22 @@
+package com.asides.app
+
+import android.app.Application
+import com.asides.app.data.AppDb
+import com.asides.app.data.Repository
+import com.asides.app.service.Transcriber
+import okhttp3.OkHttpClient
+import java.io.File
+
+class AsidesApp : Application() {
+    lateinit var repo: Repository
+        private set
+    lateinit var transcriber: Transcriber
+        private set
+
+    override fun onCreate() {
+        super.onCreate()
+        val dir = File(filesDir, "annotations").apply { mkdirs() }
+        transcriber = Transcriber(this)
+        repo = Repository(AppDb.create(this), OkHttpClient(), dir)
+    }
+}

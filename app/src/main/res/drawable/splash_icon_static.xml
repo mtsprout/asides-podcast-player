@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The splash icon is masked to a circle, so the indigo disc is drawn here and the glyph sits inside it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M54,54m-34,0a34,34 0 1,1 68,0a34,34 0 1,1 -68,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="30"
+                android:startY="18"
+                android:endX="70"
+                android:endY="90"
+                android:type="linear">
+                <item android:color="#FF4A3AA8" android:offset="0.0" />
+                <item android:color="#FF1B1464" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <group android:name="paren_left">
+        <path android:pathData="M41,29 C29,42 29,66 41,79" android:strokeColor="#FFFFFFFF" android:strokeWidth="5.5" android:strokeLineCap="round" />
+    </group>
+    <group android:name="paren_right">
+        <path android:pathData="M67,29 C79,42 79,66 67,79" android:strokeColor="#FFFFFFFF" android:strokeWidth="5.5" android:strokeLineCap="round" />
+    </group>
+    <group android:name="bar1" android:pivotX="46" android:pivotY="54">
+        <path android:pathData="M46,48 L46,60" android:strokeColor="#FFFFB74D" android:strokeWidth="5" android:strokeLineCap="round" />
+    </group>
+    <group android:name="bar2" android:pivotX="54" android:pivotY="54">
+        <path android:pathData="M54,40 L54,68" android:strokeColor="#FFFFB74D" android:strokeWidth="5" android:strokeLineCap="round" />
+    </group>
+    <group android:name="bar3" android:pivotX="62" android:pivotY="54">
+        <path android:pathData="M62,48 L62,60" android:strokeColor="#FFFFB74D" android:strokeWidth="5" android:strokeLineCap="round" />
+    </group>
+</vector>

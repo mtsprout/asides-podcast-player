@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Parentheses slide in from the sides, then the sound wave grows between them. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/splash_icon_static">
+    <target android:name="paren_left" android:animation="@animator/paren_left_in" />
+    <target android:name="paren_right" android:animation="@animator/paren_right_in" />
+    <target android:name="bar1" android:animation="@animator/bar1_grow" />
+    <target android:name="bar2" android:animation="@animator/bar2_grow" />
+    <target android:name="bar3" android:animation="@animator/bar3_grow" />
+</animated-vector>
