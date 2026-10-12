@@ -8,12 +8,17 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PodcastDao {
-    @Query("SELECT * FROM podcast ORDER BY title COLLATE NOCASE")
+    @Query("SELECT * FROM podcast WHERE subscribed = 1 ORDER BY title COLLATE NOCASE")
     fun podcasts(): Flow<List<Podcast>>
+
+    @Query("UPDATE podcast SET subscribed = :subscribed WHERE id = :id")
+    suspend fun setSubscribed(id: Long, subscribed: Boolean)
 
     @Query("SELECT * FROM podcast WHERE id = :id")
     suspend fun podcast(id: Long): Podcast?
@@ -98,7 +103,7 @@ interface AnnotationDao {
     suspend fun delete(id: Long)
 }
 
-@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 1, exportSchema = false)
+@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 2, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun podcasts(): PodcastDao
     abstract fun episodes(): EpisodeDao
@@ -106,6 +111,13 @@ abstract class AppDb : RoomDatabase() {
 
     companion object {
         fun create(context: Context): AppDb =
-            Room.databaseBuilder(context, AppDb::class.java, "asides.db").build()
+            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2).build()
+
+        /** Adds the subscribed flag; every podcast that already exists stays subscribed. */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast ADD COLUMN subscribed INTEGER NOT NULL DEFAULT 1")
+            }
+        }
     }
 }

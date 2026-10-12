@@ -14,7 +14,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.shape.CircleShape
+import kotlinx.coroutines.flow.map
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextField
@@ -39,6 +42,8 @@ import com.asides.app.data.Podcast
 import com.asides.app.data.ParsedFeed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.RadioButton
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -144,6 +149,24 @@ private object EpisodeListStyle {
 
 private val FullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
 
+/** The round corner button on a podcast tile: + to subscribe, a check mark (tap to unsubscribe) when subscribed. */
+@Composable
+private fun SubscribeBadge(subscribed: Boolean, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = CircleShape,
+        color = if (subscribed) MaterialTheme.colorScheme.surface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary,
+        modifier = modifier.padding(6.dp).size(32.dp).clip(CircleShape).clickable(enabled = !busy, onClick = onClick),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            when {
+                busy -> CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                subscribed -> Icon(Icons.Default.Check, "Subscribed. Tap to unsubscribe", Modifier.size(18.dp))
+                else -> Icon(Icons.Default.Add, "Subscribe", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            }
+        }
+    }
+}
+
 /** Square artwork that fills the width it is given. */
 @Composable
 private fun TileArtwork(url: String?) {
@@ -156,10 +179,13 @@ private fun TileArtwork(url: String?) {
 private fun SectionTitle(text: String) =
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
+private fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
+
 @Composable
 fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview: (SearchResult) -> Unit) {
     val podcasts by repo.podcasts.collectAsState(emptyList())
     val subscribed = remember(podcasts) { podcasts.map { it.feedUrl }.toSet() }
+    val asideCount by remember { repo.allAnnotations.map { it.size } }.collectAsState(0)
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     var query by remember { mutableStateOf("") }
@@ -190,11 +216,13 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
             busy = false
         }
     }
-    fun subscribe(r: SearchResult) {
+    fun toggleSubscription(feedUrl: String) {
         scope.launch {
-            subscribing += r.feedUrl; error = null
-            try { repo.subscribe(r.feedUrl) } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName }
-            subscribing -= r.feedUrl
+            subscribing += feedUrl; error = null
+            try {
+                if (feedUrl in subscribed) repo.unsubscribe(feedUrl) else repo.subscribe(feedUrl)
+            } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName }
+            subscribing -= feedUrl
         }
     }
 
@@ -203,10 +231,18 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(span = FullWidth) {
-            Text("Podcasts", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Column {
+                Text("Asides", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    if (podcasts.isEmpty()) "Find something to listen to"
+                    else "${plural(podcasts.size, "podcast")} · ${plural(asideCount, "aside")}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         item(span = FullWidth) {
             TextField(
@@ -238,10 +274,16 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
             item(span = FullWidth) { SectionTitle("Your podcasts") }
             items(podcasts, key = { "p-${it.id}" }, span = { GridItemSpan(2) }) { p ->
                 Column(Modifier.clickable { onOpenPodcast(p.id) }) {
-                    TileArtwork(p.artworkUrl)
+                    Box {
+                        TileArtwork(p.artworkUrl)
+                        SubscribeBadge(
+                            subscribed = true, busy = p.feedUrl in subscribing,
+                            onClick = { toggleSubscription(p.feedUrl) }, modifier = Modifier.align(Alignment.BottomEnd),
+                        )
+                    }
                     Text(
-                        p.title, Modifier.padding(top = 6.dp), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
+                        p.title, Modifier.padding(top = 4.dp), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 15.sp),
                     )
                 }
             }
@@ -263,25 +305,20 @@ fun LibraryScreen(repo: Repository, onOpenPodcast: (Long) -> Unit, onOpenPreview
             }
             list == null -> item(span = FullWidth) { CircularProgressIndicator() }
             list.isEmpty() -> item(span = FullWidth) { Text("Nothing found.") }
-            else -> items(list, key = { "t-${it.feedUrl}" }, span = { GridItemSpan(3) }) { r ->
-                Column {
-                    // The picture and title open the preview page; the button below subscribes directly.
-                    Column(Modifier.clickable { onOpenPreview(r) }) {
+            else -> items(list, key = { "t-${it.feedUrl}" }, span = { GridItemSpan(2) }) { r ->
+                Column(Modifier.clickable { onOpenPreview(r) }) {
+                    Box {
                         TileArtwork(r.artworkUrl)
-                        Text(
-                            r.title, Modifier.padding(top = 6.dp, bottom = 6.dp).heightIn(min = 40.dp),
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium,
+                        SubscribeBadge(
+                            subscribed = r.feedUrl in subscribed, busy = r.feedUrl in subscribing,
+                            onClick = { toggleSubscription(r.feedUrl) }, modifier = Modifier.align(Alignment.BottomEnd),
                         )
                     }
-                    val isSubscribed = r.feedUrl in subscribed
-                    FilledTonalButton(
-                        onClick = { subscribe(r) },
-                        enabled = !isSubscribed && r.feedUrl !in subscribing,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (isSubscribed) Icon(Icons.Default.Check, null, Modifier.size(18.dp))
-                        Text(if (isSubscribed) " Subscribed" else if (r.feedUrl in subscribing) "Adding…" else "Subscribe")
-                    }
+                    Text(
+                        r.title, Modifier.padding(top = 4.dp),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 15.sp),
+                    )
                 }
             }
         }
@@ -436,7 +473,10 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
                 }
             }
             if (existing != null) {
-                Button(onClick = { onOpenPodcast(existing.id) }, Modifier.fillMaxWidth()) { Text("Open podcast") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onOpenPodcast(existing.id) }, Modifier.weight(1f)) { Text("Open podcast") }
+                    OutlinedButton(onClick = { scope.launch { repo.unsubscribe(feedUrl) } }) { Text("Unsubscribe") }
+                }
             } else {
                 Button(
                     enabled = !subscribing,

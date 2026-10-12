@@ -12,6 +12,8 @@ data class Podcast(
     val title: String,
     val feedUrl: String,
     val artworkUrl: String?,
+    /** False once unsubscribed. The row stays so episodes and asides recorded on it are kept. */
+    @ColumnInfo(defaultValue = "1") val subscribed: Boolean = true,
 )
 
 @Entity(

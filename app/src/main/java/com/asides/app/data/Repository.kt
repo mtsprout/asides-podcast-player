@@ -99,13 +99,17 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         val id = dao.idForFeed(feedUrl)!!
         // Re-subscribing refreshes the title and artwork of an existing podcast.
         dao.updateInfo(id, feed.title.ifEmpty { feedUrl }, feed.artworkUrl)
+        dao.setSubscribed(id, true)
         db.episodes().insertAll(feed.episodes.map {
             Episode(podcastId = id, title = it.title, pubDate = it.pubDate, audioUrl = it.audioUrl, durationMs = it.durationMs)
         })
         id
     }
 
-    suspend fun unsubscribe(podcastId: Long) = db.podcasts().delete(podcastId)
+    /** Removes a podcast from the library but keeps its episodes and asides; subscribing again restores it. */
+    suspend fun unsubscribe(feedUrl: String) {
+        db.podcasts().idForFeed(feedUrl)?.let { db.podcasts().setSubscribed(it, false) }
+    }
 
     suspend fun savePosition(episodeId: Long, positionMs: Long, durationMs: Long) =
         db.episodes().savePosition(episodeId, positionMs, durationMs)
