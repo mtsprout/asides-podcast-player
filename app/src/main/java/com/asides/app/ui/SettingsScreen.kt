@@ -156,9 +156,23 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
             }
         }
 
+        Section("Recordings") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Save audio files", Modifier.weight(1f))
+                Switch(checked = AppSettings.saveAudio, onCheckedChange = { AppSettings.chooseSaveAudio(it) })
+            }
+            Text(
+                "Off: each aside's recording is deleted once it has been transcribed, and only the text is kept. " +
+                    "On: recordings are kept so you can play them back, but they take up a lot of space (about 2 MB " +
+                    "for every minute you talk) and make backups much larger. If a transcript can't be made, the " +
+                    "recording is always kept. Turning this on doesn't bring back recordings that were already deleted.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
         Section("Back up your asides") {
             Text(
-                "Save your asides, with their recordings and transcripts, your subscriptions and your played marks " +
+                "Save your asides (transcripts, plus any recordings you've kept), your subscriptions and your played marks " +
                     "to one file you can keep anywhere: Drive, Downloads, an email to yourself. Restoring it on this " +
                     "or another phone only adds what's missing, so it's safe to do more than once.",
                 style = MaterialTheme.typography.bodyMedium,

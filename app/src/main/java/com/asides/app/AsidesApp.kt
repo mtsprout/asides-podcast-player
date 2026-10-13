@@ -22,6 +22,7 @@ class AsidesApp : Application() {
         transcriber = Transcriber(this)
         repo = Repository(AppDb.create(this), OkHttpClient(), dir)
         AppSettings.init(this)
+        repo.saveAudio = { AppSettings.saveAudio }
         Notifier.createChannel(this)
         FeedRefreshWorker.schedule(this)
     }

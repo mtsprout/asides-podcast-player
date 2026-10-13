@@ -169,6 +169,11 @@ class PlaybackService : MediaSessionService() {
                 if (isPlaying) handler.post(savePosition) else {
                     handler.removeCallbacks(savePosition)
                     persistPosition()
+                    // The speech service is flaky and a failed transcript is only retried when asked, so
+                    // catch up on any aside still waiting whenever playback pauses (but not mid-recording).
+                    if (pendingNote == null && !recorder.isRecording) {
+                        scope.launch { (application as AsidesApp).repo.transcribePending((application as AsidesApp).transcriber) }
+                    }
                 }
             }
         })

@@ -15,8 +15,9 @@ screen off, so it fits walks, drives and chores.
 
 - **Voice asides.** Record a spoken note from your headset button, with the phone in your pocket.
   Each aside is saved with its position in the episode and transcribed after you finish. Once
-  the transcript is in, the recording is deleted to save space; if transcription fails, the
-  recording is kept so nothing is lost.
+  the transcript is in, the recording is deleted to save space (Settings → *Save audio files* keeps
+  them instead, at about 2 MB per minute); if transcription fails, the recording is kept so nothing
+  is lost.
 - **Two ways to read them.** Every episode has an **Asides** tab, and a top-level **Asides** tab
   lists everything grouped by podcast, then episode (oldest first), then aside.
 - **Find podcasts.** Search the Apple Podcasts directory, browse the top 10, or paste an RSS feed

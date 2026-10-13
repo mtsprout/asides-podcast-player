@@ -32,10 +32,20 @@ object AppSettings {
     var introSeen by mutableStateOf(true)
         private set
 
+    /** Keep each aside's recording after it is transcribed. Off by default: recordings take a lot of space. */
+    var saveAudio by mutableStateOf(false)
+        private set
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         listDensity = ListDensity.from(prefs.getString("listDensity", null))
         introSeen = prefs.getBoolean("introSeen", false)
+        saveAudio = prefs.getBoolean("saveAudio", false)
+    }
+
+    fun chooseSaveAudio(save: Boolean) {
+        saveAudio = save
+        prefs.edit().putBoolean("saveAudio", save).apply()
     }
 
     fun chooseListDensity(density: ListDensity) {

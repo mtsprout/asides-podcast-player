@@ -49,6 +49,9 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         val SAFE_WAV = Regex("[0-9A-Za-z_.-]+\\.wav")
     }
 
+    /** Whether to keep an aside's recording after it has been transcribed (the "Save audio files" setting). */
+    var saveAudio: () -> Boolean = { false }
+
     val podcasts = db.podcasts().podcasts()
     fun podcast(id: Long) = db.podcasts().podcastFlow(id)
     fun episodes(podcastId: Long) = db.episodes().episodes(podcastId)
@@ -432,8 +435,8 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             // null means the recognizer couldn't run at all; leave the rest for next time.
             val text = transcriber.transcribe(file) ?: break
             db.annotations().setTranscript(a.id, text)
-            // The text is what's kept. If nothing was recognized the recording stays, so it isn't lost.
-            if (text.isNotBlank()) deleteAnnotationAudio(a.id)
+            // By default the text is what's kept. If nothing was recognized the recording stays, so it isn't lost.
+            if (text.isNotBlank() && !saveAudio()) deleteAnnotationAudio(a.id)
         }
     }
 
