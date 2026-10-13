@@ -43,17 +43,17 @@ object Discover {
             if (newestFirst) eps.maxByOrNull { it.pubDate } else eps.minByOrNull { it.pubDate }
         }.sortedWith(compareByDescending<Episode> { it.isNew }.thenByDescending { it.pubDate }).take(limit)
 
+    /** Chosen at app start, so the random categories hold still while the app is open and change next time. */
+    val launchSeed: Long = System.nanoTime()
+
     /**
-     * Interleaves charts so that each picked interest shows up near the top: first of each, then
-     * second of each, and so on; podcasts already followed or seen twice are dropped.
+     * The categories to show a Top 5 for, in order: the ones the user picked (at most five, in list
+     * order), then random others to make up five in all; with nothing picked, four random ones.
      */
-    fun forYou(charts: List<List<SearchResult>>, followed: Set<String>, limit: Int = 12): List<SearchResult> {
-        val out = LinkedHashMap<String, SearchResult>()
-        var i = 0
-        while (out.size < limit && charts.any { i < it.size }) {
-            charts.forEach { c -> c.getOrNull(i)?.takeIf { it.feedUrl !in followed }?.let { out.putIfAbsent(it.feedUrl, it) } }
-            i++
-        }
-        return out.values.take(limit)
+    fun sections(picked: Set<Int>, seed: Long = launchSeed): List<Genre> {
+        val chosen = genres.filter { it.id in picked }.take(5)
+        val randomCount = if (chosen.isEmpty()) 4 else 5 - chosen.size
+        val others = genres.filter { it !in chosen }.shuffled(java.util.Random(seed))
+        return chosen + others.take(randomCount)
     }
 }

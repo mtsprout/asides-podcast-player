@@ -2,7 +2,6 @@ package com.asides.app
 
 import com.asides.app.data.Discover
 import com.asides.app.data.Episode
-import com.asides.app.data.SearchResult
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -43,9 +42,30 @@ class DiscoverTest {
         assertEquals(listOf(2L, 1L), Discover.upNext(unplayed, newestFirst = false).map { it.id })
     }
 
-    @Test fun `for you mixes the charts and skips what is followed`() {
-        fun r(n: String) = SearchResult(n, "f$n", null)
-        val out = Discover.forYou(listOf(listOf(r("a"), r("b")), listOf(r("c"), r("a"), r("d"))), followed = setOf("fb"), limit = 10)
-        assertEquals(listOf("a", "c", "d"), out.map { it.title })
+    private val ids = Discover.genres.map { it.id }
+
+    @Test fun `with nothing picked there are four random categories`() {
+        val s = Discover.sections(emptySet(), seed = 1)
+        assertEquals(4, s.size)
+        assertEquals(4, s.map { it.id }.toSet().size)
+    }
+
+    @Test fun `picked categories come first and random ones fill up to five`() {
+        val s = Discover.sections(setOf(ids[2]), seed = 7)
+        assertEquals(5, s.size)
+        assertEquals(ids[2], s.first().id)
+        assertEquals(5, s.map { it.id }.toSet().size)
+        val two = Discover.sections(setOf(ids[2], ids[5]), seed = 7)
+        assertEquals(listOf(ids[2], ids[5]), two.take(2).map { it.id })
+        assertEquals(5, two.size)
+    }
+
+    @Test fun `more than five picked shows the first five only`() {
+        val s = Discover.sections(ids.take(8).toSet(), seed = 3)
+        assertEquals(ids.take(5), s.map { it.id })
+    }
+
+    @Test fun `the random picks are the same for the same seed`() {
+        assertEquals(Discover.sections(emptySet(), seed = 42), Discover.sections(emptySet(), seed = 42))
     }
 }

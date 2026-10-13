@@ -25,13 +25,13 @@ screen off, so it fits walks, drives and chores.
   bar shows where you were, and **Return** (or the reviewed episode ending) puts you back there,
   paused. Nothing is marked played and no position is saved for the episode you reviewed.
 - **A front page that starts where you left off.** A *Continue listening* card with a play button,
-  an *Up next* row (each podcast's next unplayed episode, new ones first), and your three most
-  recent asides (tap one to hear it in context).
-- **Find podcasts by interest.** Browse the top podcasts in 18 categories (Comedy, History, True
-  Crime, Religion & Spirituality, ...), follow the ones you care about, and a *For you* section
-  suggests shows from them. Or search the Apple Podcasts directory, open the overall top chart, or
-  paste an RSS feed URL. Tap a podcast to preview its description and recent episodes before
-  subscribing.
+  an *Up next* row (each podcast's next unplayed episode, new ones first) and your most recent aside
+  (tap it to hear it in context).
+- **Find podcasts by interest.** Discover shows the Top 5 overall, then the Top 5 in five
+  categories: the ones you pick with the category chips, topped up with random ones (new picks each
+  time the app opens). *See all* opens the full chart, 25 at a time, 200 at most. You can also
+  search the Apple Podcasts directory or paste an RSS feed URL. Tap a podcast to preview its
+  description and recent episodes before subscribing.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
   the start of the episode and » to skip to the next one (the same five controls are on the
   lock-screen card and notification), remaining

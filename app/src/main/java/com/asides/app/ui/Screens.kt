@@ -258,17 +258,6 @@ fun LibraryScreen(
         }
     }
 
-    // Suggestions from the interests the user follows: the top of each chart, mixed, minus what they already follow.
-    val forYou by produceState<List<SearchResult>?>(null, AppSettings.interests, subscribed) {
-        value = if (AppSettings.interests.isEmpty()) emptyList() else try {
-            Discover.forYou(AppSettings.interests.sorted().map { repo.topPodcasts(it, 10) }, subscribed)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = { scope.launch { refreshing = true; repo.refreshAll(force = true); refreshing = false } },
@@ -361,13 +350,14 @@ fun LibraryScreen(
         }
 
         if (results == null) {
-            item(span = FullWidth) { DiscoverHeader(onOpenGenre, onOpenTop = { onOpenGenre(null) }) }
-            if (!forYou.isNullOrEmpty()) {
-                item(span = FullWidth) { SectionTitle("For you") }
-                items(forYou.orEmpty(), key = { "f-${it.feedUrl}" }, span = { GridItemSpan(2) }) { r ->
-                    ResultTile(r, r.feedUrl in subscribed, r.feedUrl in subscribing, { onOpenPreview(r) }) { toggleSubscription(r.feedUrl) }
+            item(span = FullWidth) { SectionTitle("Discover") }
+            item(span = FullWidth) { ChartRow(repo, null, "Top podcasts", subscribed, subscribing, onOpenPreview, { onOpenGenre(null) }, ::toggleSubscription) }
+            Discover.sections(AppSettings.interests).forEach { g ->
+                item(span = FullWidth, key = "chart-${g.id}") {
+                    ChartRow(repo, g.id, g.name, subscribed, subscribing, onOpenPreview, { onOpenGenre(g.id) }, ::toggleSubscription)
                 }
             }
+            item(span = FullWidth) { CategoryChips() }
         } else {
             item(span = FullWidth) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

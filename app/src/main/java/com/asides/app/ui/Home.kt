@@ -144,14 +144,14 @@ internal fun UpNextRow(repo: Repository, podcasts: List<Podcast>, onOpenEpisode:
     }
 }
 
-/** The three newest asides, trimmed to a few words. Tap one to hear it in context. */
+/** The newest aside, trimmed to a few words. Tap it to hear it in context. */
 @Composable
 internal fun RecentAsides(repo: Repository, player: PlayerConnection, onOpenEpisode: (Long) -> Unit, onOpenAsides: () -> Unit) {
-    val recent by remember { repo.recentAsides(3) }.collectAsState(emptyList())
+    val recent by remember { repo.recentAsides(1) }.collectAsState(emptyList())
     if (recent.isEmpty()) return
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { SectionTitle("Recent asides") }
+            Box(Modifier.weight(1f)) { SectionTitle("Most recent aside") }
             TextButton(onClick = onOpenAsides) { Text("All") }
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -176,31 +176,52 @@ internal fun RecentAsides(repo: Repository, player: PlayerConnection, onOpenEpis
     }
 }
 
-/** The Discover part of the front page: interest chips (the ones you follow first) and a way into the Top chart. */
+/** A heading, the top five of a chart as a sideways row of tiles, and "See all". [genreId] null is the overall chart. */
+@Composable
+internal fun ChartRow(
+    repo: Repository, genreId: Int?, title: String, subscribed: Set<String>, subscribing: Set<String>,
+    onOpenPreview: (SearchResult) -> Unit, onSeeAll: () -> Unit, onToggle: (String) -> Unit,
+) {
+    val chart by produceState<List<SearchResult>?>(null, genreId) {
+        value = try { repo.topPodcasts(genreId, 5) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+    }
+    Column {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onSeeAll), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("See all", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
+        }
+        val list = chart
+        when {
+            list == null -> CircularProgressIndicator(Modifier.padding(16.dp).size(24.dp))
+            list.isEmpty() -> Text("Couldn't load this one.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 6.dp)) {
+                items(list, key = { it.feedUrl }) { r ->
+                    Box(Modifier.width(120.dp)) {
+                        ResultTile(r, r.feedUrl in subscribed, r.feedUrl in subscribing, { onOpenPreview(r) }) { onToggle(r.feedUrl) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Every category as a chip. Tap to pick it: picked categories get their own Top 5 on the front page. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun DiscoverHeader(onOpenGenre: (Int?) -> Unit, onOpenTop: () -> Unit) {
-    val followed = AppSettings.interests
-    val ordered = remember(followed) { Discover.genres.sortedByDescending { it.id in followed } }
-    Column(Modifier.padding(top = 8.dp)) {
-        SectionTitle("Discover")
+internal fun CategoryChips() {
+    val picked = AppSettings.interests
+    Column(Modifier.padding(top = 4.dp)) {
+        Text("Your categories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(
-            if (followed.isEmpty()) "Pick an interest to browse its top podcasts. Follow it there to get suggestions here."
-            else "Your interests come first. Tap one to browse it.",
+            "Tap to pick the categories you want a Top 5 for. The rest are chosen at random.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ordered.forEach { g ->
-                FilterChip(selected = g.id in followed, onClick = { onOpenGenre(g.id) }, label = { Text(g.name) })
+            Discover.genres.forEach { g ->
+                FilterChip(selected = g.id in picked, onClick = { AppSettings.toggleInterest(g.id) }, label = { Text(g.name) })
             }
-        }
-        Row(
-            Modifier.fillMaxWidth().clickable(onClick = onOpenTop).padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Top podcasts", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -215,9 +236,12 @@ fun ChartScreen(repo: Repository, genreId: Int?, onOpenPreview: (SearchResult) -
     var busy by remember { mutableStateOf(emptySet<String>()) }
     var attempt by remember { mutableStateOf(0) }
     var failed by remember { mutableStateOf(false) }
-    val chart by produceState<List<SearchResult>?>(null, genreId, attempt) {
+    var limit by remember { mutableStateOf(25) }
+    var chart by remember { mutableStateOf<List<SearchResult>?>(null) }
+    LaunchedEffect(genreId, attempt, limit) {
         failed = false
-        value = try { repo.topPodcasts(genreId, 25) } catch (e: Exception) { failed = true; null }
+        // Keep showing what we have while a longer list loads.
+        try { chart = repo.topPodcasts(genreId, limit) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { if (chart == null) failed = true }
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(6),
@@ -254,6 +278,10 @@ fun ChartScreen(repo: Repository, genreId: Int?, onOpenPreview: (SearchResult) -
                     }
                 }
             }
+        }
+        val shown = chart
+        if (shown != null && shown.size >= limit && limit < 200) item(span = { GridItemSpan(maxLineSpan) }) {
+            TextButton(onClick = { limit += 25 }, Modifier.fillMaxWidth()) { Text("Show more") }
         }
     }
 }
