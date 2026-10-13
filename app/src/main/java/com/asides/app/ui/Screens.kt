@@ -672,7 +672,7 @@ private fun AnnotationItem(
         AlertDialog(
             onDismissRequest = { confirming = false },
             title = { Text("Delete this aside?") },
-            text = { if (keepText) Text("You can delete just the recording and keep the transcript, or delete both.") },
+            text = { Text(if (keepText) "You can delete just the recording and keep the transcript, or delete both. This can't be undone." else "This can't be undone.") },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     if (keepText) TextButton(onClick = { confirming = false; onDeleteAudio() }) { Text("Delete audio only") }
