@@ -558,14 +558,14 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    private companion object {
-        const val TAG = "Asides"
+    companion object {
+        private const val TAG = "Asides"
         /** The episode the listener was last in, for finding their place after the app was closed. */
         const val LAST_EPISODE_PREF = "lastEpisodeId"
-        const val PRESS_WINDOW_MS = 500L
-        const val STRAY_MS = 1_200L
-        const val MAX_NOTE_MS = 60_000L
-        const val SAVE_INTERVAL_MS = 10_000L
-        const val REWIND_MS = 3_000L
+        private const val PRESS_WINDOW_MS = 500L
+        private const val STRAY_MS = 1_200L
+        private const val MAX_NOTE_MS = 60_000L
+        private const val SAVE_INTERVAL_MS = 10_000L
+        private const val REWIND_MS = 3_000L
     }
 }

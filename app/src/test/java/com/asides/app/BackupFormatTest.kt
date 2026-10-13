@@ -22,7 +22,7 @@ class BackupFormatTest {
     private fun sample() = BackupData(
         appVersion = "0.4.0",
         exportedAt = 1_700_000_000_000,
-        settings = BackupSettings(autoplay = false, speed = 1.3f, newestFirst = true, hidePlayed = true, listDensity = "large"),
+        settings = BackupSettings(autoplay = false, speed = 1.3f, newestFirst = true, hidePlayed = true, listDensity = "large", interests = "1303,1488"),
         podcasts = listOf(
             BackupPodcast("https://a/feed", "Show \"A\" – ünïcode", "https://a/art.jpg", subscribed = true, notifyNew = true),
             BackupPodcast("https://b/feed", "Show B", null, subscribed = false, notifyNew = false),

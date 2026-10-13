@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **beta** (1.0.0-beta3). Everything described here works and gets daily use, but it is new
+> Status: **beta** (1.0.0-beta4). Everything described here works and gets daily use, but it is new
 > enough that you may hit rough edges. Please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -24,8 +24,14 @@ screen off, so it fits walks, drives and chores.
   Asides tab, and that episode plays from ten seconds before the note. Your place isn't touched: a
   bar shows where you were, and **Return** (or the reviewed episode ending) puts you back there,
   paused. Nothing is marked played and no position is saved for the episode you reviewed.
-- **Find podcasts.** Search the Apple Podcasts directory, browse the top 10, or paste an RSS feed
-  URL. Tap a podcast to preview its description and recent episodes before subscribing.
+- **A front page that starts where you left off.** A *Continue listening* card with a play button,
+  an *Up next* row (each podcast's next unplayed episode, new ones first), and your three most
+  recent asides (tap one to hear it in context).
+- **Find podcasts by interest.** Browse the top podcasts in 18 categories (Comedy, History, True
+  Crime, Religion & Spirituality, ...), follow the ones you care about, and a *For you* section
+  suggests shows from them. Or search the Apple Podcasts directory, open the overall top chart, or
+  paste an RSS feed URL. Tap a podcast to preview its description and recent episodes before
+  subscribing.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
   the start of the episode and » to skip to the next one (the same five controls are on the
   lock-screen card and notification), remaining

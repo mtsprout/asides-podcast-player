@@ -11,6 +11,8 @@ data class BackupSettings(
     val newestFirst: Boolean,
     val hidePlayed: Boolean,
     val listDensity: String,
+    /** Genre ids chosen as interests, comma separated; empty if none. */
+    val interests: String = "",
 )
 
 data class BackupPodcast(
@@ -73,6 +75,7 @@ object BackupFormat {
             put("newestFirst", data.settings.newestFirst)
             put("hidePlayed", data.settings.hidePlayed)
             put("listDensity", data.settings.listDensity)
+            put("interests", data.settings.interests)
         })
         put("podcasts", JSONArray(data.podcasts.map {
             JSONObject().put("feedUrl", it.feedUrl).put("title", it.title).put("artworkUrl", it.artworkUrl ?: JSONObject.NULL)
@@ -112,6 +115,7 @@ object BackupFormat {
                     newestFirst = s.optBoolean("newestFirst", false),
                     hidePlayed = s.optBoolean("hidePlayed", false),
                     listDensity = s.optString("listDensity", "compact"),
+                    interests = s.optString("interests", ""),
                 ),
                 podcasts = root.getJSONArray("podcasts").objects().map {
                     BackupPodcast(it.getString("feedUrl"), it.getString("title"), it.optStringOrNull("artworkUrl"),

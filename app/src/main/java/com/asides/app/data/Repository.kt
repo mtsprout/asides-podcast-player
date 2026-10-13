@@ -59,6 +59,10 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     fun annotation(id: Long) = db.annotations().flow(id)
     fun annotationsFor(episodeId: Long) = db.annotations().forEpisode(episodeId)
     val allAnnotations = db.annotations().allRows()
+    /** The newest asides first, for the front page. */
+    fun recentAsides(count: Int) = allAnnotations.map { rows -> rows.sortedByDescending { it.createdAt }.take(count) }
+    /** Unplayed episodes of followed podcasts; the front page picks "up next" from these. */
+    val unplayed = db.episodes().unplayedSubscribed()
     /** Per podcast, how many episodes a refresh found that haven't been opened yet. */
     val newCounts = db.episodes().newCounts().map { rows -> rows.associate { it.podcastId to it.count } }
 
@@ -77,23 +81,25 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         }.distinctBy { it.feedUrl }
     }
 
-    private var topCache: List<SearchResult>? = null
+    private val topCache = HashMap<Int, List<SearchResult>>()
 
     /**
-     * The iTunes top-10 podcast chart for the device's country (falling back to the US). The chart
-     * only lists ids, so a second lookup call fetches each show's feed URL and artwork.
+     * The iTunes podcast chart for the device's country (falling back to the US): the overall top
+     * [limit], or the top in one category when [genreId] is given. The chart only lists ids, so a second
+     * lookup call fetches each show's feed URL and artwork.
      */
-    suspend fun topPodcasts(): List<SearchResult> = topCache ?: withContext(Dispatchers.IO) {
+    suspend fun topPodcasts(genreId: Int? = null, limit: Int = 10): List<SearchResult> = topCache[(genreId ?: 0) * 1000 + limit] ?: withContext(Dispatchers.IO) {
         fun get(url: String) = http.newCall(Request.Builder().url(url).build()).execute().use {
             check(it.isSuccessful) { "HTTP ${it.code}" }
             it.body!!.string()
         }
         val country = Locale.getDefault().country.lowercase().ifEmpty { "us" }
+        val path = (genreId?.let { "genre=$it/" } ?: "") + "limit=$limit/json"
         val chart = try {
-            get("https://itunes.apple.com/$country/rss/toppodcasts/limit=10/json")
+            get("https://itunes.apple.com/$country/rss/toppodcasts/$path")
         } catch (e: Exception) {
             if (country == "us") throw e
-            get("https://itunes.apple.com/us/rss/toppodcasts/limit=10/json")
+            get("https://itunes.apple.com/us/rss/toppodcasts/$path")
         }
         val entries = JSONObject(chart).getJSONObject("feed").getJSONArray("entry")
         val ids = (0 until entries.length()).map {
@@ -107,7 +113,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             val feed = o.optString("feedUrl").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
             val art = o.optString("artworkUrl600").ifEmpty { o.optString("artworkUrl100") }.takeIf { it.isNotEmpty() }
             SearchResult(o.optString("collectionName"), feed, art)
-        }.distinctBy { it.feedUrl }.also { topCache = it }
+        }.distinctBy { it.feedUrl }.also { topCache[(genreId ?: 0) * 1000 + limit] = it }
     }
 
     /**

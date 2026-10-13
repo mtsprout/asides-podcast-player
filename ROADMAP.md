@@ -26,3 +26,5 @@ Ideas and loose ends that are not done yet.
 - Highlight the right bottom tab while viewing a transcript.
 - Show a description on the page of a podcast you already follow.
 - A mini player bar so playback can be controlled from any screen.
+- Suggestions that learn from the genres of the podcasts you already follow, and topic search
+  (for example through the Podcast Index directory).

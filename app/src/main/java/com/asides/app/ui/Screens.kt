@@ -101,6 +101,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import com.asides.app.data.Discover
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -177,7 +179,7 @@ private val FullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan
 
 /** The round corner button on a podcast tile: + to subscribe, a check mark (tap to unsubscribe) when subscribed. */
 @Composable
-private fun SubscribeBadge(subscribed: Boolean, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SubscribeBadge(subscribed: Boolean, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         shape = CircleShape,
         color = if (subscribed) MaterialTheme.colorScheme.surface.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary,
@@ -195,14 +197,14 @@ private fun SubscribeBadge(subscribed: Boolean, busy: Boolean, onClick: () -> Un
 
 /** Square artwork that fills the width it is given. */
 @Composable
-private fun TileArtwork(url: String?) {
+internal fun TileArtwork(url: String?) {
     val modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp))
         .background(MaterialTheme.colorScheme.surfaceVariant)
     if (url == null) Box(modifier) else AsyncImage(url, null, modifier, contentScale = ContentScale.Crop)
 }
 
 @Composable
-private fun SectionTitle(text: String) =
+internal fun SectionTitle(text: String) =
     Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
 internal fun plural(n: Int, noun: String) = "$n $noun" + if (n == 1) "" else "s"
@@ -214,6 +216,10 @@ fun LibraryScreen(
     onOpenPodcast: (Long) -> Unit,
     onOpenPreview: (SearchResult) -> Unit,
     onOpenSettings: () -> Unit,
+    player: PlayerConnection,
+    onOpenEpisode: (Long) -> Unit,
+    onOpenAsides: () -> Unit,
+    onOpenGenre: (Int?) -> Unit,
 ) {
     val podcasts by repo.podcasts.collectAsState(emptyList())
     val subscribed = remember(podcasts) { podcasts.map { it.feedUrl }.toSet() }
@@ -224,17 +230,9 @@ fun LibraryScreen(
     val focus = LocalFocusManager.current
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchResult>?>(null) }
-    var top by remember { mutableStateOf<List<SearchResult>?>(null) }
-    var topFailed by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var subscribing by remember { mutableStateOf(emptySet<String>()) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    suspend fun loadTop() {
-        topFailed = false
-        try { top = repo.topPodcasts() } catch (e: Exception) { topFailed = true }
-    }
-    LaunchedEffect(Unit) { if (top == null) loadTop() }
 
     fun submit() {
         val q = query.trim()
@@ -257,6 +255,17 @@ fun LibraryScreen(
                 if (feedUrl in subscribed) repo.unsubscribe(feedUrl) else repo.subscribe(feedUrl)
             } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName }
             subscribing -= feedUrl
+        }
+    }
+
+    // Suggestions from the interests the user follows: the top of each chart, mixed, minus what they already follow.
+    val forYou by produceState<List<SearchResult>?>(null, AppSettings.interests, subscribed) {
+        value = if (AppSettings.interests.isEmpty()) emptyList() else try {
+            Discover.forYou(AppSettings.interests.sorted().map { repo.topPodcasts(it, 10) }, subscribed)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -326,6 +335,11 @@ fun LibraryScreen(
         if (busy) item(span = FullWidth) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         error?.let { msg -> item(span = FullWidth) { Text(msg, color = MaterialTheme.colorScheme.error) } }
 
+        if (results == null) {
+            item(span = FullWidth) { ContinueCard(repo, player, onOpenEpisode) }
+            item(span = FullWidth) { UpNextRow(repo, podcasts, onOpenEpisode) }
+            item(span = FullWidth) { RecentAsides(repo, player, onOpenEpisode, onOpenAsides) }
+        }
         if (podcasts.isNotEmpty() && results == null) {
             item(span = FullWidth) { SectionTitle("Your podcasts") }
             items(podcasts, key = { "p-${it.id}" }, span = { GridItemSpan(2) }) { p ->
@@ -346,40 +360,43 @@ fun LibraryScreen(
             }
         }
 
-        item(span = FullWidth) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { SectionTitle(if (results != null) "Results" else "Top podcasts") }
-                if (results != null) TextButton(onClick = { results = null; query = ""; focus.clearFocus() }) { Text("Clear") }
+        if (results == null) {
+            item(span = FullWidth) { DiscoverHeader(onOpenGenre, onOpenTop = { onOpenGenre(null) }) }
+            if (!forYou.isNullOrEmpty()) {
+                item(span = FullWidth) { SectionTitle("For you") }
+                items(forYou.orEmpty(), key = { "f-${it.feedUrl}" }, span = { GridItemSpan(2) }) { r ->
+                    ResultTile(r, r.feedUrl in subscribed, r.feedUrl in subscribing, { onOpenPreview(r) }) { toggleSubscription(r.feedUrl) }
+                }
             }
-        }
-        val list = results ?: top
-        when {
-            list == null && topFailed -> item(span = FullWidth) {
+        } else {
+            item(span = FullWidth) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Couldn't load the top podcasts.", Modifier.weight(1f))
-                    TextButton(onClick = { scope.launch { loadTop() } }) { Text("Retry") }
+                    Box(Modifier.weight(1f)) { SectionTitle("Results") }
+                    TextButton(onClick = { results = null; query = ""; focus.clearFocus() }) { Text("Clear") }
                 }
             }
-            list == null -> item(span = FullWidth) { CircularProgressIndicator() }
-            list.isEmpty() -> item(span = FullWidth) { Text("Nothing found.") }
-            else -> items(list, key = { "t-${it.feedUrl}" }, span = { GridItemSpan(2) }) { r ->
-                Column(Modifier.clickable { onOpenPreview(r) }) {
-                    Box {
-                        TileArtwork(r.artworkUrl)
-                        SubscribeBadge(
-                            subscribed = r.feedUrl in subscribed, busy = r.feedUrl in subscribing,
-                            onClick = { toggleSubscription(r.feedUrl) }, modifier = Modifier.align(Alignment.BottomEnd),
-                        )
-                    }
-                    Text(
-                        r.title, Modifier.padding(top = 4.dp),
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 15.sp),
-                    )
-                }
+            val list = results!!
+            if (list.isEmpty()) item(span = FullWidth) { Text("Nothing found.") }
+            else items(list, key = { "t-${it.feedUrl}" }, span = { GridItemSpan(2) }) { r ->
+                ResultTile(r, r.feedUrl in subscribed, r.feedUrl in subscribing, { onOpenPreview(r) }) { toggleSubscription(r.feedUrl) }
             }
         }
     }
+    }
+}
+
+/** One podcast in a grid of search results or charts: artwork, a subscribe badge and the title. */
+@Composable
+internal fun ResultTile(r: SearchResult, subscribed: Boolean, busy: Boolean, onOpen: () -> Unit, onToggle: () -> Unit) {
+    Column(Modifier.clickable(onClick = onOpen)) {
+        Box {
+            TileArtwork(r.artworkUrl)
+            SubscribeBadge(subscribed = subscribed, busy = busy, onClick = onToggle, modifier = Modifier.align(Alignment.BottomEnd))
+        }
+        Text(
+            r.title, Modifier.padding(top = 4.dp), maxLines = 2, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 15.sp),
+        )
     }
 }
 

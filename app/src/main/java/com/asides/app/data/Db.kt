@@ -63,6 +63,9 @@ interface EpisodeDao {
     @Query("SELECT * FROM episode WHERE podcastId = :podcastId ORDER BY pubDate DESC")
     fun episodes(podcastId: Long): Flow<List<Episode>>
 
+    @Query("SELECT * FROM episode WHERE played = 0 AND podcastId IN (SELECT id FROM podcast WHERE subscribed = 1)")
+    fun unplayedSubscribed(): Flow<List<Episode>>
+
     @Query("SELECT * FROM episode WHERE id = :id")
     suspend fun episode(id: Long): Episode?
 

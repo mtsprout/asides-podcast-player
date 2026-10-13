@@ -21,6 +21,7 @@ import com.asides.app.service.Notifier
 import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import com.asides.app.ui.ChartScreen
 import com.asides.app.ui.ReviewBar
 import androidx.compose.foundation.layout.fillMaxSize
 import com.asides.app.ui.StartupSplash
@@ -229,7 +230,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = route == "library" || route.startsWith("podcast") || route.startsWith("episode") || route.startsWith("preview") || route == "settings",
+                    selected = route == "library" || route.startsWith("podcast") || route.startsWith("episode") || route.startsWith("preview") || route.startsWith("chart") || route == "settings",
                     onClick = { nav.navigateTab("library") },
                     icon = { Icon(Icons.Default.Podcasts, null) },
                     label = { Text("Library") },
@@ -254,7 +255,16 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                         nav.navigate("preview?feed=${Uri.encode(it.feedUrl)}&title=${Uri.encode(it.title)}&art=${Uri.encode(it.artworkUrl.orEmpty())}")
                     },
                     onOpenSettings = { nav.navigate("settings") },
+                    player = player,
+                    onOpenEpisode = { nav.navigate("episode/$it") },
+                    onOpenAsides = { nav.navigateTab("annotations") },
+                    onOpenGenre = { nav.navigate("chart?genre=${it ?: 0}") },
                 )
+            }
+            composable("chart?genre={genre}", arguments = listOf(navArgument("genre") { type = NavType.IntType; defaultValue = 0 })) { e ->
+                ChartScreen(repo, e.arguments!!.getInt("genre").takeIf { it != 0 }) {
+                    nav.navigate("preview?feed=${Uri.encode(it.feedUrl)}&title=${Uri.encode(it.title)}&art=${Uri.encode(it.artworkUrl.orEmpty())}")
+                }
             }
             composable("settings") { SettingsScreen(repo, player) }
             composable(
