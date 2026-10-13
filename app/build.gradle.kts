@@ -16,12 +16,12 @@ val localProps = Properties().apply {
 
 android {
     namespace = "com.asides.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.asides.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 8
         versionName = "1.0.0-beta4"
     }
