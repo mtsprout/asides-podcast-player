@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, replay them, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **beta** (1.0.0-beta1). Everything described here works and gets daily use, but it is new
+> Status: **beta** (1.0.0-beta2). Everything described here works and gets daily use, but it is new
 > enough that you may hit rough edges. Please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -39,6 +39,8 @@ screen off, so it fits walks, drives and chores.
   transcripts), your subscriptions and your played marks to one file you can keep anywhere: Drive,
   Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so
   it's safe to do twice. This is the way to keep your asides if you uninstall or change phones.
+- **Delete with care.** The trash icon on an aside lets you delete just the recording and keep the
+  transcript, or delete both.
 - **Text size.** Settings has Compact, Regular and Large for the episode lists.
 - **A welcome note** on the home page explains the earbud gesture to a first-time user (Settings can
   show it again).
