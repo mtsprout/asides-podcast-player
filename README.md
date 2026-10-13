@@ -4,7 +4,7 @@ A podcast player for Android built around one idea: you should be able to talk b
 
 Triple-tap your earbuds while an episode plays, say what's on your mind, tap once to stop. Asides
 records it, pins it to that exact moment in the episode, and transcribes it. Later you can read
-your asides, replay them, or jump straight back to the moment you made them. It works with the
+your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
 > Status: **beta** (1.0.0-beta2). Everything described here works and gets daily use, but it is new
@@ -14,7 +14,9 @@ screen off, so it fits walks, drives and chores.
 ## What it does
 
 - **Voice asides.** Record a spoken note from your headset button, with the phone in your pocket.
-  Each aside is saved with its position in the episode and transcribed after you finish.
+  Each aside is saved with its position in the episode and transcribed after you finish. Once
+  the transcript is in, the recording is deleted to save space; if transcription fails, the
+  recording is kept so nothing is lost.
 - **Two ways to read them.** Every episode has an **Asides** tab, and a top-level **Asides** tab
   lists everything grouped by podcast, then episode (oldest first), then aside.
 - **Find podcasts.** Search the Apple Podcasts directory, browse the top 10, or paste an RSS feed
@@ -35,12 +37,12 @@ screen off, so it fits walks, drives and chores.
   an "N new" badge on the podcast.
 - **Optional notifications.** Tap the bell on a podcast's page to be notified when it has a new
   episode. They are off by default, one notification per podcast, and tapping one opens the episode.
-- **Back up and restore.** In Settings, *Back up…* saves your asides (with their recordings and
-  transcripts), your subscriptions and your played marks to one file you can keep anywhere: Drive,
+- **Back up and restore.** In Settings, *Back up…* saves your asides (transcripts, plus any
+  recordings that were kept), your subscriptions and your played marks to one file you can keep anywhere: Drive,
   Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so
   it's safe to do twice. This is the way to keep your asides if you uninstall or change phones.
-- **Delete with care.** The trash icon on an aside lets you delete just the recording and keep the
-  transcript, or delete both.
+- **Delete with care.** The trash icon on an aside lets you delete just the recording (if it was
+  kept) and keep the transcript, or delete both.
 - **Text size.** Settings has Compact, Regular and Large for the episode lists.
 - **A welcome note** on the home page explains the earbud gesture to a first-time user (Settings can
   show it again).
@@ -88,7 +90,7 @@ SHA-256: A0:05:47:B4:90:A9:89:E4:4A:01:83:F4:FE:5A:6D:60:93:74:D8:2E:41:2A:39:BB
 
 - Android 8.0 (API 26) or newer.
 - Transcription needs Android 13 or newer. On older versions your asides are still recorded and
-  playable, just without text.
+  kept, just without text.
 
 ## Build and install
 

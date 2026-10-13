@@ -432,6 +432,8 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             // null means the recognizer couldn't run at all; leave the rest for next time.
             val text = transcriber.transcribe(file) ?: break
             db.annotations().setTranscript(a.id, text)
+            // The text is what's kept. If nothing was recognized the recording stays, so it isn't lost.
+            if (text.isNotBlank()) deleteAnnotationAudio(a.id)
         }
     }
 
