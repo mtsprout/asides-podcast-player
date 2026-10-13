@@ -694,8 +694,14 @@ private fun AnnotationItem(
         Row(Modifier.weight(1f).clickable(onClick = onJump), verticalAlignment = Alignment.CenterVertically) {
             Text(formatTime(positionMs), fontWeight = FontWeight.Bold)
             when {
-                transcript == null -> Text("Transcribing…", Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
-                transcript.isBlank() -> Text("No transcript", Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
+                transcript == null -> Text(
+                    "Transcribing…", Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
+                )
+                transcript.isBlank() -> Text(
+                    "No transcript available.", Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
+                )
                 else -> Text(
                     transcript.trim().replace(Regex("\\s+"), " "), Modifier.weight(1f).padding(start = 12.dp),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -765,10 +771,10 @@ fun AllAnnotationsScreen(
                 val head = epRows.first()
                 item(key = "e-$episodeId") {
                     Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenEpisode(episodeId) }) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(head.episodeTitle, fontWeight = FontWeight.SemiBold)
-                            Text(formatDate(head.episodePubDate), style = MaterialTheme.typography.bodySmall)
-                        }
+                        Text(
+                            head.episodeTitle, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
                 items(epRows, key = { "a-${it.id}" }) { r: AnnotationRow ->
