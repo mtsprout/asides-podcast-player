@@ -9,6 +9,14 @@ Ideas and loose ends that are not done yet.
   recognizer, which is Google's speech service and may use the network. A bundled offline model
   would keep everything on the device.
 
+## Help wanted
+
+- **Test wired headsets.** Wired headsets send the same key for every press, so Asides counts
+  presses to tell a single, double and triple press apart (`PressCounter`, covered by unit tests).
+  That path has never run on a real wired headset, because the maintainer's phone has no headphone
+  jack. If you have a phone and wired headset that work together, please try the gestures and
+  [open an issue](https://github.com/mtsprout/asides-podcast-player/issues) with what happened.
+
 ## Small stuff
 
 - Scheduled automatic backups, and Android's own cloud backup for the app's data.

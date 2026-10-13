@@ -260,7 +260,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             val asides = db.annotations().allNow().mapNotNull { a ->
                 val ep = episodeById[a.episodeId] ?: return@mapNotNull null
                 val feed = podcastById.getValue(ep.podcastId).feedUrl
-                val hasAudio = File(a.audioPath).exists()
+                val hasAudio = a.audioPath.isNotEmpty() && File(a.audioPath).exists()
                 a to BackupAside(feed, ep.guid, ep.audioUrl, a.positionMs, a.createdAt, a.transcript, if (hasAudio) "audio/${a.id}.wav" else null)
             }
             val data = BackupData(
@@ -376,15 +376,20 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
                 continue
             }
             val source = a.audio?.let { File(staging, File(it).name) }?.takeIf { it.exists() }
-            if (source == null) {
+            // An aside whose recording was deleted on purpose comes back as text only.
+            if (source == null && a.transcript.isNullOrBlank()) {
                 withoutAudio++
                 continue
             }
-            var destination = File(annotationDir, "note-${a.createdAt}.wav")
-            var n = 1
-            while (destination.exists()) destination = File(annotationDir, "note-${a.createdAt}-${n++}.wav")
-            source.copyTo(destination)
-            annotationDao.insert(Annotation(episodeId = episodeId, positionMs = a.positionMs, audioPath = destination.absolutePath,
+            var path = ""
+            if (source != null) {
+                var destination = File(annotationDir, "note-${a.createdAt}.wav")
+                var n = 1
+                while (destination.exists()) destination = File(annotationDir, "note-${a.createdAt}-${n++}.wav")
+                source.copyTo(destination)
+                path = destination.absolutePath
+            }
+            annotationDao.insert(Annotation(episodeId = episodeId, positionMs = a.positionMs, audioPath = path,
                 transcript = a.transcript, createdAt = a.createdAt))
             restored++
         }
@@ -420,6 +425,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     /** Transcribes every annotation that has no transcript yet. Safe to call from anywhere, any time. */
     suspend fun transcribePending(transcriber: Transcriber) = transcribeLock.withLock {
         for (a in db.annotations().pending()) {
+            if (a.audioPath.isEmpty()) { db.annotations().setTranscript(a.id, ""); continue }
             val file = File(a.audioPath)
             // Notes from the first build were m4a; the recognizer needs the raw PCM in newer WAV notes.
             if (!file.exists() || file.extension != "wav") { db.annotations().setTranscript(a.id, ""); continue }
@@ -432,8 +438,14 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     suspend fun addAnnotation(episodeId: Long, positionMs: Long, audio: File): Long =
         db.annotations().insert(Annotation(episodeId = episodeId, positionMs = positionMs, audioPath = audio.absolutePath))
 
+    /** Deletes the recording but keeps the aside and its transcript. */
+    suspend fun deleteAnnotationAudio(id: Long) {
+        db.annotations().get(id)?.let { if (it.audioPath.isNotEmpty()) File(it.audioPath).delete() }
+        db.annotations().clearAudio(id)
+    }
+
     suspend fun deleteAnnotation(id: Long) {
-        db.annotations().get(id)?.let { File(it.audioPath).delete() }
+        db.annotations().get(id)?.let { if (it.audioPath.isNotEmpty()) File(it.audioPath).delete() }
         db.annotations().delete(id)
     }
 }

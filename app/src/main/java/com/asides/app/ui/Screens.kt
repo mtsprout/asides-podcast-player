@@ -636,6 +636,7 @@ internal fun AnnotationList(
     player: PlayerConnection,
     onOpenTranscript: (Long) -> Unit,
     onDelete: (Long) -> Unit,
+    onDeleteAudio: (Long) -> Unit,
     onJump: (Annotation) -> Unit,
 ) {
     if (items.isEmpty()) {
@@ -647,6 +648,7 @@ internal fun AnnotationList(
             AnnotationItem(
                 a.positionMs, a.transcript, a.audioPath, player,
                 onJump = { onJump(a) }, onOpenTranscript = { onOpenTranscript(a.id) }, onDelete = { onDelete(a.id) },
+                onDeleteAudio = { onDeleteAudio(a.id) },
             )
         }
     }
@@ -661,7 +663,25 @@ private fun AnnotationItem(
     onJump: () -> Unit,
     onOpenTranscript: () -> Unit,
     onDelete: () -> Unit,
+    onDeleteAudio: () -> Unit,
 ) {
+    val hasAudio = audioPath.isNotEmpty()
+    var confirming by remember { mutableStateOf(false) }
+    if (confirming) {
+        val keepText = hasAudio && !transcript.isNullOrBlank()
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text("Delete this aside?") },
+            text = { if (keepText) Text("You can delete just the recording and keep the transcript, or delete both.") },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    if (keepText) TextButton(onClick = { confirming = false; onDeleteAudio() }) { Text("Delete audio only") }
+                    TextButton(onClick = { confirming = false; onDelete() }) { Text(if (keepText) "Delete both" else "Delete") }
+                    TextButton(onClick = { confirming = false }) { Text("Cancel") }
+                }
+            },
+        )
+    }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).clickable(onClick = onJump)) {
             Text(formatTime(positionMs), fontWeight = FontWeight.Bold)
@@ -672,8 +692,8 @@ private fun AnnotationItem(
         }
         // Dimmed and inert until there is a transcript to show (disabled IconButtons dim themselves).
         IconButton(enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
-        IconButton(onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
-        IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete aside") }
+        IconButton(enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
+        IconButton(onClick = { confirming = true }) { Icon(Icons.Default.Delete, "Delete aside") }
     }
     HorizontalDivider()
 }
@@ -692,7 +712,7 @@ fun TranscriptScreen(repo: Repository, annotationId: Long, player: PlayerConnect
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            IconButton(onClick = { player.playClip(note.audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
+            IconButton(enabled = note.audioPath.isNotEmpty(), onClick = { player.playClip(note.audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
         }
         HorizontalDivider()
         SelectionContainer {
@@ -744,6 +764,7 @@ fun AllAnnotationsScreen(
                         onJump = { onOpenEpisode(episodeId) },
                         onOpenTranscript = { onOpenTranscript(r.id) },
                         onDelete = { scope.launch { repo.deleteAnnotation(r.id) } },
+                        onDeleteAudio = { scope.launch { repo.deleteAnnotationAudio(r.id) } },
                     )
                 }
             }

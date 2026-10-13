@@ -57,7 +57,7 @@ screen off, so it fits walks, drives and chores.
 Headsets differ in which buttons they send. Many Bluetooth earbuds send *previous track* for a
 triple-tap and *next track* for a double-tap, and Asides handles those the same way. Wired
 headsets send the same key for every press, so Asides counts the presses (this path is written
-but not yet tested on a real wired headset). A recording also stops
+but not yet tested on a real wired headset; see the [roadmap](ROADMAP.md)). A recording also stops
 on its own after 60 seconds. After a double- or triple-tap, Asides ignores the stray play/pause
 some earbuds add for about a second.
 

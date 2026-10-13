@@ -134,6 +134,7 @@ fun EpisodeScreen(
                 annotations, player,
                 onOpenTranscript = onOpenTranscript,
                 onDelete = { id -> scope.launch { repo.deleteAnnotation(id) } },
+                onDeleteAudio = { id -> scope.launch { repo.deleteAnnotationAudio(id) } },
                 onJump = { a ->
                     player.play(e, podcast)
                     player.seekTo(a.positionMs)

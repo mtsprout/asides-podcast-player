@@ -147,7 +147,11 @@ interface AnnotationDao {
     @Query("SELECT * FROM annotation WHERE id = :id")
     fun flow(id: Long): Flow<Annotation?>
 
-    @Query("UPDATE annotation SET transcript = NULL")
+    /** Forgets the recording but keeps the text; an empty path means "no audio". */
+    @Query("UPDATE annotation SET audioPath = '' WHERE id = :id")
+    suspend fun clearAudio(id: Long)
+
+    @Query("UPDATE annotation SET transcript = NULL WHERE audioPath != ''")
     suspend fun clearTranscripts()
 
     @Query("SELECT * FROM annotation WHERE transcript IS NULL ORDER BY id")

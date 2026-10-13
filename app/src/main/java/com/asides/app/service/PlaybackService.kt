@@ -1,5 +1,6 @@
 package com.asides.app.service
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -19,6 +20,7 @@ import androidx.core.app.NotificationCompat
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
+import com.asides.app.MainActivity
 import androidx.media3.session.MediaNotification
 import com.asides.app.R
 import androidx.media3.common.Player
@@ -186,6 +188,14 @@ class PlaybackService : MediaSessionService() {
         @Suppress("DEPRECATION") // the ordered list is what the system card reads
         session = MediaSession.Builder(this, WithoutSkipCommands(player))
             .setCustomLayout(buttons)
+            // Tapping the notification (or Samsung's status-bar chip) opens the app.
+            .setSessionActivity(
+                PendingIntent.getActivity(
+                    this, 0,
+                    Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(
                     session: MediaSession,
