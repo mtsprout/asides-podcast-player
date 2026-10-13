@@ -116,6 +116,9 @@ class PlaybackService : MediaSessionService() {
      * when playback ends; this keeps it so through the handoff.
      */
     @Volatile private var holdForeground = false
+
+    /** True while the service itself swaps the episode, so the listener doesn't mistake it for the user's. */
+    private var ourOwnChange = false
     private var resolvePress: Runnable? = null
     private var gestureAt = -STRAY_MS
 
@@ -153,6 +156,8 @@ class PlaybackService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state != Player.STATE_ENDED) { holdForeground = false; return }
+                // A reviewed episode finishing means "back to where I was", not "on to the next one".
+                if (Review.info != null) { returnFromReview(); return }
                 val prefs = getSharedPreferences("prefs", MODE_PRIVATE)
                 // "Sleep at the end of the episode" means stop here, not carry on to the next one.
                 val sleepAtEnd = prefs.getBoolean(SleepTimer.PREF_END_OF_EPISODE, false)
@@ -163,6 +168,12 @@ class PlaybackService : MediaSessionService() {
                     repo.markFinished(id)
                     if (!sleepAtEnd && prefs.getBoolean(Autoplay.PREF, true)) playNextAfter(id, prefs.getBoolean("newestFirst", false))
                 }
+            }
+
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                // Something else was started (not by us): the review is over, and there is no going back.
+                val review = Review.info ?: return
+                if (!ourOwnChange && mediaItem?.mediaId?.toLongOrNull() != review.reviewEpisodeId) Review.info = null
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -222,6 +233,8 @@ class PlaybackService : MediaSessionService() {
                         .add(SessionCommand(PlayerCommands.FORWARD_30, Bundle.EMPTY))
                         .add(SessionCommand(PlayerCommands.RESTART, Bundle.EMPTY))
                         .add(SessionCommand(PlayerCommands.NEXT_EPISODE, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.START_REVIEW, Bundle.EMPTY))
+                        .add(SessionCommand(PlayerCommands.END_REVIEW, Bundle.EMPTY))
                         .build()
                     return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailableSessionCommands(commands).build()
@@ -239,6 +252,9 @@ class PlaybackService : MediaSessionService() {
                         PlayerCommands.FORWARD_30 -> player.seekForward()
                         PlayerCommands.RESTART -> player.seekTo(0)
                         PlayerCommands.NEXT_EPISODE -> skipToNextEpisode()
+                        PlayerCommands.START_REVIEW ->
+                            startReview(args.getLong(PlayerCommands.ARG_EPISODE_ID), args.getLong(PlayerCommands.ARG_POSITION_MS))
+                        PlayerCommands.END_REVIEW -> returnFromReview()
                         else -> return super.onCustomCommand(session, controller, customCommand, args)
                     }
                     return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -397,6 +413,7 @@ class PlaybackService : MediaSessionService() {
 
     /** The "next episode" button: keep our place in this episode, then start the next unplayed one. */
     private fun skipToNextEpisode() {
+        if (Review.info != null) { returnFromReview(); return }
         val id = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
         val position = player.currentPosition
         val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
@@ -440,13 +457,89 @@ class PlaybackService : MediaSessionService() {
         super.onUpdateNotification(session, startInForegroundRequired || holdForeground)
     }
 
+    /**
+     * Plays the aside at [asideMs] in [episodeId] (starting a little earlier), remembering where the
+     * listener was so [returnFromReview] can put them back.
+     */
+    private fun startReview(episodeId: Long, asideMs: Long) {
+        val currentId = player.currentMediaItem?.mediaId?.toLongOrNull()
+        val currentPosition = player.currentPosition
+        val currentDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
+        val currentTitle = player.mediaMetadata.title?.toString().orEmpty()
+        val start = Review.startPosition(asideMs)
+        scope.launch {
+            val repo = (application as AsidesApp).repo
+            val episode = repo.episodeNow(episodeId) ?: return@launch
+            val item = mediaItemFor(episode, repo.podcastNow(episode.podcastId))
+            // Keep the place being left, exactly (not only as of the last periodic save).
+            if (Review.info == null && currentId != null) repo.savePosition(currentId, currentPosition, currentDuration)
+            // With nothing loaded (the app was just opened), the place to return to is the last episode
+            // listened to, at its saved position.
+            var placeId = currentId
+            var placePosition = currentPosition
+            var placeTitle = currentTitle
+            if (currentId == null && Review.info == null) {
+                val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
+                repo.episodeNow(lastId)?.let { placeId = it.id; placePosition = it.positionMs; placeTitle = it.title }
+            }
+            withContext(Dispatchers.Main) {
+                val plan = Review.begin(Review.info, placeId, placePosition, placeTitle, episodeId)
+                ourOwnChange = true
+                try {
+                    Review.info = plan
+                    if (player.currentMediaItem?.mediaId?.toLongOrNull() == episodeId) {
+                        player.seekTo(start)
+                    } else {
+                        player.setMediaItem(item, start)
+                        player.prepare()
+                    }
+                    player.play()
+                } finally {
+                    ourOwnChange = false
+                }
+            }
+        }
+    }
+
+    /** Ends a review: back to the episode and spot the listener left, paused. */
+    private fun returnFromReview() {
+        val review = Review.info ?: return
+        scope.launch {
+            val repo = (application as AsidesApp).repo
+            val episode = repo.episodeNow(review.returnEpisodeId)
+            val item = episode?.let { mediaItemFor(it, repo.podcastNow(it.podcastId)) }
+            withContext(Dispatchers.Main) {
+                ourOwnChange = true
+                try {
+                    player.playWhenReady = false
+                    if (item != null) {
+                        if (player.currentMediaItem?.mediaId?.toLongOrNull() == review.returnEpisodeId) {
+                            player.seekTo(review.returnPositionMs)
+                        } else {
+                            player.setMediaItem(item, review.returnPositionMs)
+                            player.prepare()
+                        }
+                    }
+                } finally {
+                    // Cleared last, so the pause above isn't saved as the reviewed episode's position.
+                    Review.info = null
+                    ourOwnChange = false
+                }
+            }
+        }
+    }
+
     private fun persistPosition() {
+        // A review changes nothing about the episode being reviewed.
+        if (Review.info != null) return
         // At the end the position is reset by markFinished; don't overwrite it with the final timestamp.
         if (player.playbackState == Player.STATE_ENDED) return
         val id = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
         val pos = player.currentPosition
         val dur = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
         val repo = (application as AsidesApp).repo
+        // Remembered so a review can find the listener's place even when nothing is loaded in the player.
+        getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, id).apply()
         scope.launch { repo.savePosition(id, pos, dur) }
     }
 
@@ -467,6 +560,8 @@ class PlaybackService : MediaSessionService() {
 
     private companion object {
         const val TAG = "Asides"
+        /** The episode the listener was last in, for finding their place after the app was closed. */
+        const val LAST_EPISODE_PREF = "lastEpisodeId"
         const val PRESS_WINDOW_MS = 500L
         const val STRAY_MS = 1_200L
         const val MAX_NOTE_MS = 60_000L

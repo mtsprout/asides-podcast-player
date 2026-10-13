@@ -761,7 +761,11 @@ fun AllAnnotationsScreen(
                 items(epRows, key = { "a-${it.id}" }) { r: AnnotationRow ->
                     AnnotationItem(
                         r.positionMs, r.transcript, r.audioPath, player,
-                        onJump = { onOpenEpisode(episodeId) },
+                        onJump = {
+                            // Play it in context (ten seconds early) without losing your place; the bar offers Return.
+                            player.startReview(episodeId, r.positionMs)
+                            onOpenEpisode(episodeId)
+                        },
                         onOpenTranscript = { onOpenTranscript(r.id) },
                         onDelete = { scope.launch { repo.deleteAnnotation(r.id) } },
                         onDeleteAudio = { scope.launch { repo.deleteAnnotationAudio(r.id) } },

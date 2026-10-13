@@ -20,6 +20,8 @@ import com.asides.app.service.FeedRefreshWorker
 import com.asides.app.service.Notifier
 import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import com.asides.app.ui.ReviewBar
 import androidx.compose.foundation.layout.fillMaxSize
 import com.asides.app.ui.StartupSplash
 import androidx.activity.ComponentActivity
@@ -241,7 +243,9 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = "library", modifier = Modifier.padding(padding)) {
+        Column(Modifier.padding(padding)) {
+        ReviewBar(player)
+        NavHost(nav, startDestination = "library", modifier = Modifier.weight(1f)) {
             composable("library") {
                 LibraryScreen(
                     repo,
@@ -282,6 +286,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
             composable("annotations") {
                 AllAnnotationsScreen(repo, player, { nav.navigate("episode/$it") }, { nav.navigate("transcript/$it") })
             }
+        }
         }
     }
 }

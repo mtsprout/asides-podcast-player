@@ -20,6 +20,10 @@ screen off, so it fits walks, drives and chores.
   is lost.
 - **Two ways to read them.** Every episode has an **Asides** tab, and a top-level **Asides** tab
   lists everything grouped by podcast, then episode (oldest first), then aside.
+- **Hear an aside in context.** Tap an aside's timestamp, in an episode's Asides tab or in the global
+  Asides tab, and that episode plays from ten seconds before the note. Your place isn't touched: a
+  bar shows where you were, and **Return** (or the reviewed episode ending) puts you back there,
+  paused. Nothing is marked played and no position is saved for the episode you reviewed.
 - **Find podcasts.** Search the Apple Podcasts directory, browse the top 10, or paste an RSS feed
   URL. Tap a podcast to preview its description and recent episodes before subscribing.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to

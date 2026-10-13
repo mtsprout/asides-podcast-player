@@ -246,6 +246,8 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         return NextEpisode.pick(db.episodes().episodesNow(current.podcastId), episodeId, newestFirst)
     }
 
+    suspend fun episodeNow(id: Long): Episode? = db.episodes().episode(id)
+
     suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
 
     /**

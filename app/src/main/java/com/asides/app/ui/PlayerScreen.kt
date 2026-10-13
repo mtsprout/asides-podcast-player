@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import com.asides.app.data.Episode
 import com.asides.app.data.Podcast
 import com.asides.app.data.Repository
+import com.asides.app.service.Review
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -119,6 +120,8 @@ fun EpisodeScreen(
             0 -> PlayingTab(
                 e, podcast, nextEpisode, player,
                 onNext = {
+                    // In a review, "next" means "back to where I was".
+                    if (Review.info != null) { player.returnFromReview(); return@PlayingTab }
                     nextEpisode?.let { next ->
                         scope.launch {
                             // Keep our place in this episode before moving on.
@@ -136,8 +139,8 @@ fun EpisodeScreen(
                 onDelete = { id -> scope.launch { repo.deleteAnnotation(id) } },
                 onDeleteAudio = { id -> scope.launch { repo.deleteAnnotationAudio(id) } },
                 onJump = { a ->
-                    player.play(e, podcast)
-                    player.seekTo(a.positionMs)
+                    // Hear it in context without losing your place: Return goes back.
+                    player.startReview(e.id, a.positionMs)
                     tab = 0
                 },
             )

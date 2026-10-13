@@ -18,6 +18,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.asides.app.service.Autoplay
+import com.asides.app.service.PlayerCommands
 import com.asides.app.service.SleepTimer
 import com.asides.app.service.mediaItemFor
 import com.google.common.util.concurrent.MoreExecutors
@@ -127,6 +128,24 @@ class PlayerConnection(private val context: Context) {
             c.prepare()
         }
         c.play()
+    }
+
+    /**
+     * Plays an aside in context, ten seconds early, while the service remembers where the listener was
+     * so [returnFromReview] can go back there, paused.
+     */
+    fun startReview(episodeId: Long, positionMs: Long) {
+        controller?.sendCustomCommand(
+            SessionCommand(PlayerCommands.START_REVIEW, Bundle.EMPTY),
+            Bundle().apply {
+                putLong(PlayerCommands.ARG_EPISODE_ID, episodeId)
+                putLong(PlayerCommands.ARG_POSITION_MS, positionMs)
+            },
+        )
+    }
+
+    fun returnFromReview() {
+        controller?.sendCustomCommand(SessionCommand(PlayerCommands.END_REVIEW, Bundle.EMPTY), Bundle.EMPTY)
     }
 
     /** Sets the playback speed, kept within [MIN_SPEED], [MAX_SPEED] in 0.1 steps, and remembers it. */
