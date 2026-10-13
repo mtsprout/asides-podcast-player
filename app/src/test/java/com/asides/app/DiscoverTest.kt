@@ -60,9 +60,14 @@ class DiscoverTest {
         assertEquals(5, two.size)
     }
 
-    @Test fun `more than five picked shows the first five only`() {
-        val s = Discover.sections(ids.take(8).toSet(), seed = 3)
-        assertEquals(ids.take(5), s.map { it.id })
+    @Test fun `more than five picked shows a random five of them`() {
+        val picked = ids.take(8).toSet()
+        val a = Discover.sections(picked, seed = 3).map { it.id }
+        assertEquals(5, a.size)
+        assert(a.all { it in picked })
+        assertEquals(a, a.sortedBy { ids.indexOf(it) })
+        val differs = (1L..20L).map { Discover.sections(picked, seed = it).map { g -> g.id } }.toSet().size > 1
+        assert(differs)
     }
 
     @Test fun `the random picks are the same for the same seed`() {

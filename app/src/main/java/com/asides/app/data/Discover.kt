@@ -51,9 +51,12 @@ object Discover {
      * order), then random others to make up five in all; with nothing picked, four random ones.
      */
     fun sections(picked: Set<Int>, seed: Long = launchSeed): List<Genre> {
-        val chosen = genres.filter { it.id in picked }.take(5)
+        val rng = java.util.Random(seed)
+        val pickedGenres = genres.filter { it.id in picked }
+        // Past five picks, a different five each time the app opens (kept in list order).
+        val chosen = if (pickedGenres.size <= 5) pickedGenres else pickedGenres.shuffled(rng).take(5).sortedBy { genres.indexOf(it) }
         val randomCount = if (chosen.isEmpty()) 4 else 5 - chosen.size
-        val others = genres.filter { it !in chosen }.shuffled(java.util.Random(seed))
+        val others = genres.filter { it !in chosen }.shuffled(rng)
         return chosen + others.take(randomCount)
     }
 }

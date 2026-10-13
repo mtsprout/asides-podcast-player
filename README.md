@@ -28,7 +28,7 @@ screen off, so it fits walks, drives and chores.
   an *Up next* row (each podcast's next unplayed episode, new ones first) and your most recent aside
   (tap it to hear it in context).
 - **Find podcasts by interest.** Discover shows the Top 5 overall, then the Top 5 in five
-  categories: the ones you pick with the category chips, topped up with random ones (new picks each
+  categories: the ones you pick with the category chips (a random five if you pick more), topped up with random ones (new picks each
   time the app opens). *See all* opens the full chart, 25 at a time, 200 at most. You can also
   search the Apple Podcasts directory or paste an RSS feed URL. Tap a podcast to preview its
   description and recent episodes before subscribing.
