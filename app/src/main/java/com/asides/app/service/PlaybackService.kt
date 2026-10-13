@@ -13,6 +13,7 @@ import android.util.Log
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
+import androidx.core.app.ServiceCompat
 import androidx.core.content.IntentCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -107,6 +108,14 @@ class PlaybackService : MediaSessionService() {
     private val counter = PressCounter(PRESS_WINDOW_MS)
 
     private var pendingNote: PendingNote? = null
+
+    /**
+     * True from the end of an episode until autoplay has started the next one. Android only lets a
+     * service become foreground again while the app is visible, so with the screen off, letting go at
+     * the end of an episode meant the next one could not take over. Media3 would stop being foreground
+     * when playback ends; this keeps it so through the handoff.
+     */
+    @Volatile private var holdForeground = false
     private var resolvePress: Runnable? = null
     private var gestureAt = -STRAY_MS
 
@@ -143,10 +152,11 @@ class PlaybackService : MediaSessionService() {
         player.setPlaybackSpeed(getSharedPreferences("prefs", MODE_PRIVATE).getFloat("speed", 1f))
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state != Player.STATE_ENDED) return
+                if (state != Player.STATE_ENDED) { holdForeground = false; return }
                 val prefs = getSharedPreferences("prefs", MODE_PRIVATE)
                 // "Sleep at the end of the episode" means stop here, not carry on to the next one.
                 val sleepAtEnd = prefs.getBoolean(SleepTimer.PREF_END_OF_EPISODE, false)
+                holdForeground = !sleepAtEnd && prefs.getBoolean(Autoplay.PREF, true)
                 clearSleepTimer()
                 val id = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
                 scope.launch {
@@ -398,7 +408,8 @@ class PlaybackService : MediaSessionService() {
      */
     private suspend fun playNextAfter(finishedId: Long, newestFirst: Boolean, onlyIfEnded: Boolean = true) {
         val repo = (application as AsidesApp).repo
-        val next = repo.nextEpisode(finishedId, newestFirst) ?: return
+        val next = repo.nextEpisode(finishedId, newestFirst)
+        if (next == null) { releaseForegroundHold(); return }
         val item = mediaItemFor(next, repo.podcastNow(next.podcastId))
         repo.markSeen(next.id)
         Log.d(TAG, "autoplay: ${next.title}")
@@ -409,8 +420,19 @@ class PlaybackService : MediaSessionService() {
                 player.setMediaItem(item, next.positionMs)
                 player.prepare()
                 player.play()
-            }
+            } else releaseForegroundHold()
         }
+    }
+
+    /** Nothing is going to play next after all: let the service stop being foreground, as it normally would. */
+    private suspend fun releaseForegroundHold() = withContext(Dispatchers.Main) {
+        if (!holdForeground) return@withContext
+        holdForeground = false
+        if (player.playbackState == Player.STATE_ENDED) ServiceCompat.stopForeground(this@PlaybackService, ServiceCompat.STOP_FOREGROUND_DETACH)
+    }
+
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        super.onUpdateNotification(session, startInForegroundRequired || holdForeground)
     }
 
     private fun persistPosition() {

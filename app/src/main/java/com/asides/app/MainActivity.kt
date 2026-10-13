@@ -94,6 +94,17 @@ class MainActivity : ComponentActivity() {
      */
     private fun sendDebugPlayerCommand(intent: Intent) {
         val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+        // `--ei debug_seek_from_end 15` jumps to 15 s before the end, to watch an episode finish by itself.
+        val fromEnd = if (debuggable && intent.hasExtra("debug_seek_from_end")) intent.getIntExtra("debug_seek_from_end", 0) else null
+        if (fromEnd != null) {
+            val seekToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+            val seekFuture = MediaController.Builder(this, seekToken).buildAsync()
+            seekFuture.addListener({
+                val c = seekFuture.get()
+                c.seekTo((c.duration - fromEnd * 1000L).coerceAtLeast(0))
+                c.release()
+            }, ContextCompat.getMainExecutor(this))
+        }
         val name = intent.getStringExtra("debug_command")?.takeIf { debuggable } ?: return
         val action = when (name) {
             "BACK_10" -> PlayerCommands.BACK_10
