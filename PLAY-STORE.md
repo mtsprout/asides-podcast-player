@@ -20,7 +20,7 @@ maintainer's own Google account or a decision; the rest is ready.
    app's data) and reinstall, after taking a backup. Decide before the first upload; it cannot be
    changed afterwards.
 3. **Package name** `com.asides.app` is permanent once uploaded.
-4. **Contact email** for the store listing (public). Not in this repo.
+4. **Contact email** for the store listing (public): montexas210@gmail.com (decided; also in PRIVACY.md).
 5. **Version.** Play needs a final, non-beta `versionName` (suggest `1.0.0`) and a higher
    `versionCode` than 8. Not changed yet.
 
@@ -72,17 +72,24 @@ maintainer's own Google account or a decision; the rest is ready.
 > Transcription uses your phone's speech recognizer (usually Google's, which may send the recording
 > to Google to transcribe it). Open source under the MIT license.
 
-**Category:** Music & Audio. **Tags:** podcasts, audio player. **Contact:** the maintainer's email,
+**Category:** Music & Audio. **Tags:** podcasts, audio player. **Contact:** montexas210@gmail.com,
 plus <https://github.com/mtsprout/asides-podcast-player> as the website.
 
-## 3. Graphics (YOU, or ask for help)
+## 3. Graphics (made; in `dist/play/`, which is git-ignored)
 
-- **App icon 512 x 512 PNG.** Easiest: Android Studio → *Image Asset* → check "Play Store icon" (the
-  project's adaptive icon is `res/mipmap-anydpi-v26/ic_launcher.xml`).
-- **Feature graphic 1024 x 500.** Needed; not made yet.
-- **Phone screenshots, 2 to 8** (1080 x 2340 works). Suggested: the front page, an episode's
-  player, the Asides tab (with a transcript), the review bar, Discover. **Take them from a copy with
-  public test podcasts, not a phone with real asides.**
+- **App icon 512 x 512 PNG:** `icon-512.png`, drawn from the app's own icon artwork.
+- **Feature graphic 1024 x 500:** `feature-graphic-1024x500.png`.
+- **Phone screenshots, 2 to 8:** `screenshot-1-library.png`, `-3-player`, `-4-asides`,
+  `-5-episode-asides`, cropped to 1080 x 2130 (Play requires the long side to be at most twice the
+  short side, and the status bar is cropped off). Made from a copy with public test podcasts and
+  made-up asides, never the real data.
+
+## 3b. The microphone demo video (YOU)
+
+Play wants a short unlisted video (YouTube) of the microphone foreground service in use. Record it with
+the phone's own screen recorder (Samsung: swipe down twice, tap *Screen recorder*, choose *Media sounds
+and mic*, then *Start*). Play an episode, show the notification, triple-press the earbuds, say a
+sentence, press once to stop, then open the Asides tab to show the saved note. 30 to 60 seconds.
 
 ## 4. App content forms
 

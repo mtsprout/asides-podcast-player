@@ -53,5 +53,5 @@ Asides is not directed at children and collects no personal information from any
 ## Changes and contact
 
 If this policy changes, the new version will be published in this file in the project's repository,
-with a new date at the top. Questions or concerns:
+with a new date at the top. Questions or concerns: email <montexas210@gmail.com> or
 [open an issue](https://github.com/mtsprout/asides-podcast-player/issues).
