@@ -172,6 +172,11 @@ class PlaybackService : MediaSessionService() {
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                // Remember the episode the moment it is loaded (autoplay included), not only at the next save,
+                // so a play press after Android stops this service resumes the right one.
+                if (Review.info == null) mediaItem?.mediaId?.toLongOrNull()?.let {
+                    getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
+                }
                 // Something else was started (not by us): the review is over, and there is no going back.
                 val review = Review.info ?: return
                 if (!ourOwnChange && mediaItem?.mediaId?.toLongOrNull() != review.reviewEpisodeId) Review.info = null
@@ -252,6 +257,7 @@ class PlaybackService : MediaSessionService() {
                         val repo = (application as AsidesApp).repo
                         val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
                         val episode = repo.episodeNow(lastId)
+                        Log.d(TAG, "resumption: episode $lastId at ${episode?.positionMs}")
                         if (episode == null) {
                             result.setException(UnsupportedOperationException("Nothing to resume"))
                         } else {
