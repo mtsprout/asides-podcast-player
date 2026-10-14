@@ -10,7 +10,8 @@ import com.asides.app.data.Podcast
 fun mediaItemFor(episode: Episode, podcast: Podcast?): MediaItem =
     MediaItem.Builder()
         .setMediaId(episode.id.toString())
-        .setUri(episode.audioUrl)
+        // A downloaded copy plays offline; otherwise the episode streams.
+        .setUri(Downloads.localFile(episode.id)?.let(Uri::fromFile) ?: Uri.parse(episode.audioUrl))
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(episode.title)

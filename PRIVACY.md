@@ -11,6 +11,8 @@ developer runs no server that receives your data. What you create stays on your 
 - Your **asides**: the voice notes you record, their position in the episode, and their transcripts.
   By default the recording is deleted once it has been transcribed (Settings → *Save audio files* keeps
   them), and if transcription fails the recording is kept.
+- Episodes you choose to **download**, as ordinary audio files in the app's own storage (removed by
+  the app or by uninstalling).
 - Your settings (for example playback speed and the categories you picked).
 
 This is kept in the app's private storage. Uninstalling the app deletes it. You can delete any aside
@@ -32,6 +34,12 @@ control) and stops when you finish or after 60 seconds. It never listens in the 
   Google to transcribe it. Asides itself sends nothing to the developer or to any third party of
   its own. Google's handling of that audio is covered by Google's privacy policy. If you do not want
   this, do not record asides (or turn off the recognizer in your phone's settings).
+
+## Bluetooth
+
+If you turn on *Resume when Bluetooth audio connects*, Android asks for permission to see Bluetooth
+connections. Asides uses it only to notice that a Bluetooth audio device connected, so it can resume
+playback. It does not read, store or send the name or address of any device.
 
 ## Backups
 

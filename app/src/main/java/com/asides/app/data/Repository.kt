@@ -419,14 +419,24 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     suspend fun savePosition(episodeId: Long, positionMs: Long, durationMs: Long) =
         db.episodes().savePosition(episodeId, positionMs, durationMs)
 
-    suspend fun setPlayed(episodeId: Long, played: Boolean) = db.episodes().setPlayed(episodeId, played)
+    /** Told which episodes were just marked played (the app uses it to clear their downloads). */
+    var onPlayed: (Collection<Long>) -> Unit = {}
 
-    suspend fun setPlayed(episodeIds: Collection<Long>, played: Boolean) = db.episodes().setPlayed(episodeIds, played)
+    suspend fun setPlayed(episodeId: Long, played: Boolean) {
+        db.episodes().setPlayed(episodeId, played)
+        if (played) onPlayed(listOf(episodeId))
+    }
+
+    suspend fun setPlayed(episodeIds: Collection<Long>, played: Boolean) {
+        db.episodes().setPlayed(episodeIds, played)
+        if (played) onPlayed(episodeIds)
+    }
 
     /** Called when an episode plays to the end: mark it played and rewind it for next time. */
     suspend fun markFinished(episodeId: Long) {
         db.episodes().setPlayed(episodeId, true)
         db.episodes().savePosition(episodeId, 0, 0)
+        onPlayed(listOf(episodeId))
     }
 
     suspend fun clearTranscripts() = db.annotations().clearTranscripts()

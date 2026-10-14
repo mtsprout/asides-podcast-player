@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **beta** (1.0.0-beta4). Everything described here works and gets daily use, but it is new
+> Status: **beta** (1.0.0-beta5). Everything described here works and gets daily use, but it is new
 > enough that you may hit rough edges. Please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -32,6 +32,16 @@ screen off, so it fits walks, drives and chores.
   time the app opens). *See all* opens the full chart, 25 at a time, 200 at most. You can also
   search the Apple Podcasts directory or paste an RSS feed URL. Tap a podcast to preview its
   description and recent episodes before subscribing.
+- **Downloads.** Tap the arrow beside any episode to save it on your phone; it plays offline from then
+  on. A ring shows progress, a check marks a finished download, and tapping the check removes it (your
+  asides and place are kept). Select several episodes and choose **Download** (or **Remove**, when
+  they are all downloaded) to do them together. Settings → Downloads shows the space used, can **delete
+  all downloads** at once, and has a switch (on by default) that deletes an episode's download once you
+  finish it or mark it played.
+- **Picks up where you left off, in the car too.** Playback survives swiping the app away (the status-bar
+  chip and notification stay), and a Bluetooth play button wakes Asides even if Android stopped it. An
+  optional Settings switch, *Resume when Bluetooth audio connects*, starts your last episode when your
+  car or earbuds connect.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
   the start of the episode and » to skip to the next one (the same five controls are on the
   lock-screen card and notification), remaining
@@ -138,7 +148,10 @@ go over the network:
 ## Known limitations
 
 - The Top podcasts list uses an older, unofficial Apple endpoint that could stop working.
-- Episodes are streamed, not downloaded, so playback needs a connection.
+- Episodes stream unless you download them. Downloads are manual; there is no auto-download of new
+  episodes yet.
+- *Resume when Bluetooth audio connects* applies to every Bluetooth audio device, and works only if
+  Android lets an app start playing from the background; that can differ by phone.
 - **Background refresh timing is up to Android.** "About every 4 hours" is a target, not a promise,
   and some phones (Samsung's battery saver, for example) postpone background work for apps you
   haven't opened in a while. Opening the app or pulling down to refresh always works.

@@ -99,6 +99,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import com.asides.app.service.Downloads
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
@@ -412,6 +418,16 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
     var refreshing by remember { mutableStateOf(false) }
     // Look for new episodes when the page opens (skipped if checked in the last half hour).
     LaunchedEffect(podcastId) { repo.refreshPodcast(podcastId) }
+    val downloads by Downloads.state.collectAsState()
+    var confirmRemove by remember { mutableStateOf<Episode?>(null) }
+    // While anything is downloading, keep the progress rings moving (and pick up finished files).
+    val downloading = downloads.progress.isNotEmpty()
+    LaunchedEffect(downloading) {
+        while (downloading) {
+            delay(1000)
+            withContext(Dispatchers.IO) { Downloads.refresh() }
+        }
+    }
     // Oldest first by default, which is the natural order for working through a series.
     var newestFirst by remember { mutableStateOf(prefs.getBoolean("newestFirst", false)) }
     var hidePlayed by remember { mutableStateOf(prefs.getBoolean("hidePlayed", false)) }
@@ -511,6 +527,28 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                         style = EpisodeListStyle.meta, modifier = Modifier.alpha(dim),
                     )
                 }
+                val progress = downloads.progress[e.id]
+                IconButton(
+                    modifier = Modifier.size(EpisodeListStyle.checkButtonSize),
+                    onClick = {
+                        when {
+                            e.id in downloads.done -> confirmRemove = e
+                            progress != null -> scope.launch(Dispatchers.IO) { Downloads.remove(e.id) }
+                            else -> scope.launch(Dispatchers.IO) { Downloads.start(e) }
+                        }
+                    },
+                ) {
+                    when {
+                        e.id in downloads.done -> Icon(
+                            Icons.Default.DownloadDone, "Downloaded. Tap to remove the download.",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                        progress != null -> CircularProgressIndicator(
+                            progress = { progress / 100f }, modifier = Modifier.size(22.dp), strokeWidth = 2.dp,
+                        )
+                        else -> Icon(Icons.Default.Download, "Download", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 IconButton(
                     modifier = Modifier.size(EpisodeListStyle.checkButtonSize),
                     onClick = { scope.launch { repo.setPlayed(e.id, !e.played) } },
@@ -524,6 +562,17 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
             HorizontalDivider()
         }
     }
+    confirmRemove?.let { e ->
+        AlertDialog(
+            onDismissRequest = { confirmRemove = null },
+            title = { Text("Remove download?") },
+            text = { Text("\"${e.title}\" will be deleted from this phone. It can still be streamed, and your asides and place are kept.") },
+            confirmButton = {
+                TextButton(onClick = { confirmRemove = null; scope.launch(Dispatchers.IO) { Downloads.remove(e.id) } }) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } },
+        )
+    }
     if (selected.isNotEmpty()) {
         Surface(
             color = MaterialTheme.colorScheme.secondaryContainer,
@@ -535,6 +584,14 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                     IconButton(onClick = { selected = emptySet(); anchor = null }) { Icon(Icons.Default.Close, "Clear selection") }
                     Text("${selected.size} selected", Modifier.weight(1f), softWrap = false, style = MaterialTheme.typography.titleMedium)
                     TextButton(onClick = { selected = episodes.map { it.id }.toSet() }) { Text("All") }
+                    val chosen = episodes.filter { it.id in selected }
+                    val allDownloaded = chosen.isNotEmpty() && chosen.all { it.id in downloads.done }
+                    TextButton(onClick = {
+                        selected = emptySet(); anchor = null
+                        scope.launch(Dispatchers.IO) {
+                            if (allDownloaded) Downloads.removeAll(chosen.map { it.id }) else chosen.forEach(Downloads::start)
+                        }
+                    }) { Text(if (allDownloaded) "Remove" else "Download") }
                     TextButton(onClick = { markSelected(true) }) { Text("Played") }
                     TextButton(onClick = { markSelected(false) }) { Text("Unplayed") }
                 }

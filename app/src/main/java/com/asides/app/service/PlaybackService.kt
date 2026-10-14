@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableList
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import androidx.media3.session.MediaSessionService
 import com.asides.app.AsidesApp
 import kotlinx.coroutines.CoroutineScope
@@ -238,6 +239,27 @@ class PlaybackService : MediaSessionService() {
                         .build()
                     return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailableSessionCommands(commands).build()
+                }
+
+                // The system asks for this when a Bluetooth device (the truck) or the media controls press
+                // play after this service was stopped: pick up the last episode where it was left.
+                override fun onPlaybackResumption(
+                    mediaSession: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+                    val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+                    scope.launch {
+                        val repo = (application as AsidesApp).repo
+                        val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
+                        val episode = repo.episodeNow(lastId)
+                        if (episode == null) {
+                            result.setException(UnsupportedOperationException("Nothing to resume"))
+                        } else {
+                            val item = mediaItemFor(episode, repo.podcastNow(episode.podcastId))
+                            result.set(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, episode.positionMs))
+                        }
+                    }
+                    return result
                 }
 
                 override fun onCustomCommand(
@@ -544,7 +566,9 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
+        // Paused with an episode loaded: stay alive, so the notification (and the status-bar chip) stay
+        // and the headset or the truck can resume. Only stop when there is nothing to come back to.
+        if (player.mediaItemCount == 0) stopSelf()
     }
 
     override fun onDestroy() {

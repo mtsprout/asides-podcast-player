@@ -41,11 +41,31 @@ object AppSettings {
     var interests by mutableStateOf(emptySet<Int>())
         private set
 
+    /** Resume the last episode when Bluetooth audio connects (the truck, say). Off until asked for. */
+    var resumeOnBluetooth by mutableStateOf(false)
+        private set
+
+    fun chooseResumeOnBluetooth(on: Boolean) {
+        resumeOnBluetooth = on
+        prefs.edit().putBoolean("resumeOnBluetooth", on).apply()
+    }
+
+    /** Delete an episode's download once it is played (finished, or marked played). On unless turned off. */
+    var autoDeleteDownloads by mutableStateOf(true)
+        private set
+
+    fun chooseAutoDeleteDownloads(on: Boolean) {
+        autoDeleteDownloads = on
+        prefs.edit().putBoolean("autoDeleteDownloads", on).apply()
+    }
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         listDensity = ListDensity.from(prefs.getString("listDensity", null))
         introSeen = prefs.getBoolean("introSeen", false)
         saveAudio = prefs.getBoolean("saveAudio", false)
+        resumeOnBluetooth = prefs.getBoolean("resumeOnBluetooth", false)
+        autoDeleteDownloads = prefs.getBoolean("autoDeleteDownloads", true)
         interests = Discover.parseInterests(prefs.getString("interests", null))
     }
 

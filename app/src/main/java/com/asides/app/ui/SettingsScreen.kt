@@ -19,12 +19,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -154,6 +157,64 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
                 Text("Play the next episode automatically", Modifier.weight(1f))
                 Switch(checked = player.autoplay, onCheckedChange = { player.toggleAutoplay() })
             }
+        }
+
+        Section("Downloads") {
+            val downloads by com.asides.app.service.Downloads.state.collectAsState()
+            val scope = rememberCoroutineScope()
+            var size by remember { mutableStateOf(0L) }
+            var confirm by remember { mutableStateOf(false) }
+            LaunchedEffect(downloads.done) {
+                size = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.asides.app.service.Downloads.sizeBytes() }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Delete a download once the episode is played", Modifier.weight(1f))
+                Switch(checked = AppSettings.autoDeleteDownloads, onCheckedChange = { AppSettings.chooseAutoDeleteDownloads(it) })
+            }
+            Text(
+                "${downloads.done.size} downloaded, using %.0f MB. Marking an episode played (or finishing it) removes its download when this is on.".format(size / 1_000_000.0),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(onClick = { confirm = true }, enabled = downloads.done.isNotEmpty() || downloads.progress.isNotEmpty()) {
+                Text("Delete all downloads")
+            }
+            if (confirm) {
+                AlertDialog(
+                    onDismissRequest = { confirm = false },
+                    title = { Text("Delete all downloads?") },
+                    text = { Text("Downloaded episodes are removed from this phone. They can still be streamed, and your asides and places are kept.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirm = false
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) { com.asides.app.service.Downloads.removeAll() }
+                        }) { Text("Delete all") }
+                    },
+                    dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+                )
+            }
+        }
+
+        Section("Bluetooth") {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+            ) { granted -> AppSettings.chooseResumeOnBluetooth(granted) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Resume when Bluetooth audio connects", Modifier.weight(1f))
+                Switch(checked = AppSettings.resumeOnBluetooth, onCheckedChange = { on ->
+                    val needsPermission = on && android.os.Build.VERSION.SDK_INT >= 31 &&
+                        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) !=
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (needsPermission) ask.launch(android.Manifest.permission.BLUETOOTH_CONNECT) else AppSettings.chooseResumeOnBluetooth(on)
+                })
+            }
+            Text(
+                "When your car, a speaker or earbuds connect over Bluetooth, the episode you were last listening to " +
+                    "picks up where you left off. Android asks once for permission to see Bluetooth connections. " +
+                    "It applies to every Bluetooth audio device, and it only works if Android lets Asides start " +
+                    "playing from the background.",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
 
         Section("Recordings") {

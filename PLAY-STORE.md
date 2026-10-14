@@ -112,6 +112,11 @@ plus <https://github.com/mtsprout/asides-podcast-player> as the website.
     visible; upload unlisted to YouTube).**
 - **Sensitive permission `RECORD_AUDIO`:** core function; reflected in the privacy policy and the
   video above.
+- **`BLUETOOTH_CONNECT`:** used only to receive the "Bluetooth audio connected" event for the optional
+  *Resume when Bluetooth audio connects* setting (off by default); no device information is read or
+  stored. Describe it that way if the console asks.
+- **Downloads:** episodes are saved with Android's own DownloadManager into the app's private storage;
+  no extra permission or foreground-service type is needed.
 - **Notifications:** `POST_NOTIFICATIONS` for playback controls and optional new-episode alerts.
 
 ## 5. Release path
