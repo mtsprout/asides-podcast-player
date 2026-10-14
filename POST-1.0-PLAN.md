@@ -1,6 +1,7 @@
 # Post-1.0 plan: front page and finding podcasts by interest
 
-Status as of 1.0.0-beta4 (2026-10-13). Most of the first round shipped in beta4; what is left is below.
+Status as of 1.0.0 (2026-10-14). The first round shipped in beta4; beta5 added downloads, resume from
+Bluetooth and a stopped player; what is left is below.
 
 ## Shipped in 1.0.0-beta4
 

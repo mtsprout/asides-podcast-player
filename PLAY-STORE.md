@@ -21,8 +21,7 @@ maintainer's own Google account or a decision; the rest is ready.
    changed afterwards.
 3. **Package name** `com.asides.app` is permanent once uploaded.
 4. **Contact email** for the store listing (public): montexas210@gmail.com (decided; also in PRIVACY.md).
-5. **Version.** Play needs a final, non-beta `versionName` (suggest `1.0.0`) and a higher
-   `versionCode` than 8. Not changed yet.
+5. **Version.** `versionName` is now `1.0.0`, `versionCode` 10.
 
 ## 1. What is ready
 
