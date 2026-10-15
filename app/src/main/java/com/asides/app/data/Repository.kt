@@ -254,6 +254,12 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
 
     suspend fun episodeNow(id: Long): Episode? = db.episodes().episode(id)
 
+    /** The episode a play press should resume: the last one listened to, or the next one if it is finished. */
+    suspend fun resumeEpisode(lastId: Long, newestFirst: Boolean): Episode? {
+        val last = db.episodes().episode(lastId) ?: return null
+        return NextEpisode.resume(db.episodes().episodesNow(last.podcastId), lastId, newestFirst)
+    }
+
     suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
 
     /**

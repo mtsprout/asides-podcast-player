@@ -256,8 +256,9 @@ class PlaybackService : MediaSessionService() {
                     scope.launch {
                         val repo = (application as AsidesApp).repo
                         val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
-                        val episode = repo.episodeNow(lastId)
-                        Log.d(TAG, "resumption: episode $lastId at ${episode?.positionMs}")
+                        val newestFirst = getSharedPreferences("prefs", MODE_PRIVATE).getBoolean("newestFirst", false)
+                        val episode = repo.resumeEpisode(lastId, newestFirst)
+                        Log.d(TAG, "resumption: last $lastId, resuming ${episode?.id} at ${episode?.positionMs}")
                         if (episode == null) {
                             result.setException(UnsupportedOperationException("Nothing to resume"))
                         } else {

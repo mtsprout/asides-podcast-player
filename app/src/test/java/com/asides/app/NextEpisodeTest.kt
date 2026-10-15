@@ -49,4 +49,23 @@ class NextEpisodeTest {
         assertEquals("B", NextEpisode.pick(all, currentId = 9, newestFirst = false)?.title)
         assertEquals("A", NextEpisode.pick(all, currentId = 11, newestFirst = false)?.title)
     }
+
+    @Test fun resumeStaysOnAnEpisodeInProgress() {
+        val eps = series().map { if (it.id == 2L) it.copy(positionMs = 5000) else it }
+        assertEquals("Day 2", NextEpisode.resume(eps, 2, newestFirst = false)?.title)
+    }
+
+    @Test fun resumeMovesPastAFinishedEpisode() {
+        // Days 1 and 2 finished (played, back at the start); Day 3 is next.
+        assertEquals("Day 3", NextEpisode.resume(series(played = setOf(1, 2)), 1, newestFirst = false)?.title)
+    }
+
+    @Test fun resumeKeepsAReplayedPlayedEpisode() {
+        val eps = series(played = setOf(2)).map { if (it.id == 2L) it.copy(positionMs = 9000) else it }
+        assertEquals("Day 2", NextEpisode.resume(eps, 2, newestFirst = false)?.title)
+    }
+
+    @Test fun resumeFallsBackToTheFinishedEpisodeAtTheEnd() {
+        assertEquals("Day 5", NextEpisode.resume(series(played = setOf(5)), 5, newestFirst = false)?.title)
+    }
 }

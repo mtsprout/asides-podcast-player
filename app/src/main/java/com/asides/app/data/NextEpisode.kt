@@ -17,4 +17,15 @@ object NextEpisode {
         if (i < 0) return null
         return ordered.drop(i + 1).firstOrNull { !it.played }
     }
+
+    /**
+     * Where a play press should pick up after the player was shut down. Normally the episode last
+     * listened to. But if that one is finished (played, and back at the start), the listener has moved
+     * on, so go to the next unplayed episode, the same one autoplay would have chosen.
+     */
+    fun resume(all: List<Episode>, lastId: Long, newestFirst: Boolean): Episode? {
+        val last = all.firstOrNull { it.id == lastId } ?: return null
+        if (!last.played || last.positionMs > 0) return last
+        return pick(all, lastId, newestFirst) ?: last
+    }
 }
