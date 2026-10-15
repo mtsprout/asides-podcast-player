@@ -42,6 +42,37 @@ class DiscoverTest {
         assertEquals(listOf(2L, 1L), Discover.upNext(unplayed, newestFirst = false).map { it.id })
     }
 
+    @Test fun `up next leaves out the continue listening episode`() {
+        val unplayed = listOf(ep(1, 1, 100), ep(3, 2, 50))
+        assertEquals(listOf(3L), Discover.upNext(unplayed, newestFirst = false, excludeId = 1).map { it.id })
+    }
+
+    @Test fun `a show is in a category by its own id or a subcategory`() {
+        assertEquals(true, Discover.inGenre(listOf(1533, 26), 1533))
+        assertEquals(true, Discover.inGenre(listOf(1535, 26), 1533))   // a Science subcategory
+        assertEquals(false, Discover.inGenre(listOf(1324, 26), 1533))
+        assertEquals(true, Discover.inGenre(listOf(1487), 1487))       // History has no subcategories
+    }
+
+    @Test fun `category names map to ids in any case`() {
+        assertEquals(1314, Discover.genreIdForName("Religion & Spirituality"))
+        assertEquals(1487, Discover.genreIdForName(" history "))
+        assertEquals(null, Discover.genreIdForName("Government"))
+    }
+
+    @Test fun `the followed category with most podcasts wins`() {
+        val byFeed = mapOf("a" to setOf(1314), "b" to setOf(1314, 1324), "c" to setOf(1324), "d" to setOf(1314))
+        // Among the followed a, b, c: religion (1314) has a and b, society (1324) has b and c. A tie goes to the earlier listed.
+        val (g, n) = Discover.topFollowedGenre(byFeed, listOf("a", "b", "c"))!!
+        assertEquals(1314 to 2, g.id to n)
+        val (g2, n2) = Discover.topFollowedGenre(byFeed, listOf("b", "c"))!!
+        assertEquals(1324 to 2, g2.id to n2)
+    }
+
+    @Test fun `no known categories means no suggestions`() {
+        assertEquals(null, Discover.topFollowedGenre(emptyMap(), listOf("a")))
+    }
+
     private val ids = Discover.genres.map { it.id }
 
     @Test fun `with nothing picked there are four random categories`() {

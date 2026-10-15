@@ -2,6 +2,7 @@ package com.asides.app
 
 import android.app.Application
 import com.asides.app.data.AppDb
+import com.asides.app.data.GenreStore
 import com.asides.app.data.Repository
 import com.asides.app.service.Downloads
 import com.asides.app.service.FeedRefreshWorker
@@ -24,7 +25,7 @@ class AsidesApp : Application() {
         super.onCreate()
         val dir = File(filesDir, "annotations").apply { mkdirs() }
         transcriber = Transcriber(this)
-        repo = Repository(AppDb.create(this), OkHttpClient(), dir)
+        repo = Repository(AppDb.create(this), OkHttpClient(), dir, GenreStore(getSharedPreferences("genres", MODE_PRIVATE)))
         AppSettings.init(this)
         Downloads.init(this)
         repo.saveAudio = { AppSettings.saveAudio }

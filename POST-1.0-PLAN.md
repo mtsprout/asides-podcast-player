@@ -1,6 +1,6 @@
 # Post-1.0 plan: front page and finding podcasts by interest
 
-Status as of 1.0.0 (2026-10-14). The first round shipped in beta4; beta5 added downloads, resume from
+Status as of 1.0.4 (2026-10-15). The first round shipped in beta4; beta5 added downloads, resume from
 Bluetooth and a stopped player; what is left is below.
 
 ## Shipped in 1.0.0-beta4
@@ -27,22 +27,28 @@ Decisions behind it: no new bottom tab (the bar stays Library and Asides); Top 1
 an inline list; categories come from Apple's top-level podcast categories through the same iTunes chart
 endpoint the app already used (`toppodcasts/genre=<id>`), so there is no new dependency, account or key.
 
+## Shipped in 1.0.4
+
+- **Mini player bar**: a slim bar above the tabs (title, podcast, play/pause, progress) on every screen
+  except the episode's own, so playback can be controlled anywhere. Tap it to open the episode.
+- **Suggestions that learn from what you follow**: a "Because you follow N <category> podcasts" row at
+  the top of Discover, from the category most of your followed podcasts share, leaving out shows you
+  already follow. The categories come from each feed's own `itunes:category` tags and are kept in a small
+  preferences file (`genres`), not the database, so there is no schema change and nothing to migrate.
+  Feeds followed before this are read once in full to learn their categories.
+- **Search inside a category**: the category page (See all) has a search box. Apple's search can't filter
+  by category, so 200 results are fetched and filtered by category (with the subcategory table in
+  `Discover`).
+- **Up next** no longer repeats the episode on the Continue listening card.
+
 ## Still to do
 
-- **Mini player bar**, so playback can be controlled from any screen. Pairs naturally with the
-  Continue listening card.
-- **Suggestions that learn from what you follow.** The iTunes lookup returns each show's genres, so
-  subscribed podcasts could seed suggestions ("Because you follow 2 religion podcasts"). This needs the
-  genre stored on `Podcast`, which is a Room schema change: it needs a tested migration, a backup taken
-  first, and a check on a side-by-side copy (never on the real app).
-- **Topic search** ("forgiveness", "Roman history"). Apple's search mostly matches titles, so this
-  likely means a second directory. The **Podcast Index** (free, open, needs an API key) is acceptable
-  to the maintainer. Cost: a key that can't be committed in the clear to a public repo, another
-  third-party dependency, and a privacy note in the README. It would also hedge against Apple's
-  unofficial chart endpoint disappearing.
-- **Search inside a category** (iTunes search accepts a genre hint; verify before relying on it).
-- **Up next** can show the same episode as the Continue card; filter it out.
+- **Topic search** ("forgiveness", "Roman history") across all categories. Apple's search mostly matches
+  titles, so this likely means a second directory. The **Podcast Index** (free, open, needs an API key)
+  is acceptable to the maintainer. Cost: a key that can't be committed in the clear to a public repo,
+  another third-party dependency, and a privacy note in the README.
 - **Retry per row.** A Discover row that fails to load just says it couldn't.
+- Check the new cards and bars at the Regular and Large text sizes.
 
 ## Open questions
 

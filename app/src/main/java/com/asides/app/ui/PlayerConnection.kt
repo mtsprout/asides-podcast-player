@@ -40,6 +40,13 @@ class PlayerConnection(private val context: Context) {
         private set
     var speed by mutableFloatStateOf(1f)
         private set
+    /** What is loaded, for the mini player: episode title, podcast name and artwork address. */
+    var title by mutableStateOf("")
+        private set
+    var podcastTitle by mutableStateOf("")
+        private set
+    var artworkUrl by mutableStateOf<String?>(null)
+        private set
 
     /** Whether the next unplayed episode starts by itself when one finishes. The service reads the same setting. */
     var autoplay by mutableStateOf(context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getBoolean(Autoplay.PREF, true))
@@ -119,6 +126,9 @@ class PlayerConnection(private val context: Context) {
         positionMs = p.currentPosition
         durationMs = p.duration.takeIf { it > 0 } ?: 0L
         speed = p.playbackParameters.speed
+        title = p.mediaMetadata.title?.toString().orEmpty()
+        podcastTitle = p.mediaMetadata.artist?.toString().orEmpty()
+        artworkUrl = p.mediaMetadata.artworkUri?.toString()
     }
 
     fun play(episode: Episode, podcast: Podcast? = null) {

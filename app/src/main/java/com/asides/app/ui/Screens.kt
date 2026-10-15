@@ -332,7 +332,7 @@ fun LibraryScreen(
 
         if (results == null) {
             item(span = FullWidth) { ContinueCard(repo, player, onOpenEpisode) }
-            item(span = FullWidth) { UpNextRow(repo, podcasts, onOpenEpisode) }
+            item(span = FullWidth) { UpNextRow(repo, podcasts, player, onOpenEpisode) }
             item(span = FullWidth) { RecentAsides(repo, player, onOpenEpisode, onOpenAsides) }
         }
         if (podcasts.isNotEmpty() && results == null) {
@@ -357,6 +357,18 @@ fun LibraryScreen(
 
         if (results == null) {
             item(span = FullWidth) { SectionTitle("Discover") }
+            item(span = FullWidth) {
+                // Learned from the feeds' own categories; shown once at least one followed podcast has one.
+                val genresByFeed by (repo.genreStore?.all ?: kotlinx.coroutines.flow.MutableStateFlow(emptyMap())).collectAsState()
+                val top = Discover.topFollowedGenre(genresByFeed, podcasts.map { it.feedUrl })
+                if (top != null) {
+                    val (g, n) = top
+                    ChartRow(
+                        repo, g.id, "Because you follow $n ${g.name} podcast${if (n == 1) "" else "s"}",
+                        subscribed, subscribing, onOpenPreview, { onOpenGenre(g.id) }, ::toggleSubscription, suggest = true,
+                    )
+                }
+            }
             item(span = FullWidth) { ChartRow(repo, null, "Top podcasts", subscribed, subscribing, onOpenPreview, { onOpenGenre(null) }, ::toggleSubscription) }
             Discover.sections(AppSettings.interests).forEach { g ->
                 item(span = FullWidth, key = "chart-${g.id}") {

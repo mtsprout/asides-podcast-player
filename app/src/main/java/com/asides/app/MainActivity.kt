@@ -228,6 +228,9 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
 
     Scaffold(
         bottomBar = {
+          Column {
+            // The episode's own screen already has the full controls.
+            if (!route.startsWith("episode")) com.asides.app.ui.MiniPlayer(player) { nav.navigate("episode/$it") }
             NavigationBar {
                 NavigationBarItem(
                     selected = route == "library" || route.startsWith("podcast") || route.startsWith("episode") || route.startsWith("preview") || route.startsWith("chart") || route == "settings",
@@ -242,6 +245,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                     label = { Text("Asides") },
                 )
             }
+          }
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {

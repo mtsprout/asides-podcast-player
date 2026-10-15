@@ -23,6 +23,8 @@ data class ParsedFeed(
     val episodes: List<ParsedEpisode>,
     val description: String = "",
     val author: String = "",
+    /** The feed's top-level iTunes category names, e.g. "Religion & Spirituality". */
+    val categories: List<String> = emptyList(),
 )
 
 /** Minimal RSS 2.0 / iTunes podcast feed parser. */
@@ -36,6 +38,8 @@ object FeedParser {
         var summary = ""
         var author = ""
         var inImage = false
+        val categories = ArrayList<String>()
+        var categoryDepth = 0
         var artwork: String? = null
         val episodes = ArrayList<ParsedEpisode>()
 
@@ -56,6 +60,11 @@ object FeedParser {
                     // The parser isn't namespace-aware, so names carry their prefix ("itunes:image").
                     val raw = p.name
                     when (raw.substringAfter(':')) {
+                        "category" -> if (!inItem) {
+                            // Subcategories are nested inside their top-level category; only that one is wanted.
+                            if (categoryDepth == 0) p.getAttributeValue(null, "text")?.trim()?.takeIf { it.isNotEmpty() }?.let { categories += it }
+                            categoryDepth++
+                        }
                         "item" -> {
                             inItem = true; title = ""; pub = 0L; audio = null; duration = 0L
                             itemDesc = ""; itemEncoded = ""; itemSummary = ""; itemGuid = null
@@ -86,6 +95,7 @@ object FeedParser {
                     }
                 }
                 XmlPullParser.END_TAG -> when (p.name) {
+                    "category", "itunes:category" -> if (categoryDepth > 0) categoryDepth--
                     "image" -> inImage = false
                     "item" -> {
                         inItem = false
@@ -100,7 +110,7 @@ object FeedParser {
             }
             event = p.next()
         }
-        return ParsedFeed(feedTitle, artwork, episodes, plainText(description.ifBlank { summary }), author)
+        return ParsedFeed(feedTitle, artwork, episodes, plainText(description.ifBlank { summary }), author, categories)
     }
 
     /** Feed descriptions are often HTML; show them as plain text. */

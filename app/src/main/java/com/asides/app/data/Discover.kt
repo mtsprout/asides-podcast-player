@@ -14,6 +14,45 @@ object Discover {
         Genre(1483, "Fiction"), Genre(1305, "Kids & Family"), Genre(1309, "TV & Film"), Genre(1502, "Leisure"),
     )
 
+    /** Apple's subcategories of each top-level category (from its genres directory). */
+    private val subgenres: Map<Int, Set<Int>> = mapOf(
+        1301 to setOf(1306, 1402, 1405, 1406, 1459, 1482),
+        1321 to setOf(1410, 1412, 1491, 1492, 1493, 1494),
+        1303 to setOf(1495, 1496, 1497),
+        1304 to setOf(1498, 1499, 1500, 1501),
+        1483 to setOf(1484, 1485, 1486),
+        1511 to setOf(),
+        1512 to setOf(1513, 1514, 1515, 1516, 1517, 1518),
+        1487 to setOf(),
+        1305 to setOf(1519, 1520, 1521, 1522),
+        1502 to setOf(1503, 1504, 1505, 1506, 1507, 1508, 1509, 1510),
+        1310 to setOf(1523, 1524, 1525),
+        1489 to setOf(1490, 1526, 1527, 1528, 1529, 1530, 1531),
+        1314 to setOf(1438, 1439, 1440, 1441, 1444, 1463, 1532),
+        1533 to setOf(1534, 1535, 1536, 1537, 1538, 1539, 1540, 1541, 1542),
+        1324 to setOf(1302, 1320, 1443, 1543, 1544),
+        1545 to setOf(1546, 1547, 1548, 1549, 1550, 1551, 1552, 1553, 1554, 1555, 1556, 1557, 1558, 1559, 1560),
+        1309 to setOf(1561, 1562, 1563, 1564, 1565),
+        1318 to setOf(),
+        1488 to setOf(),
+    )
+
+    /** Whether a directory entry whose categories are [genreIds] belongs to the top-level category [genreId]. */
+    fun inGenre(genreIds: Collection<Int>, genreId: Int): Boolean =
+        genreId in genreIds || genreIds.any { it in subgenres[genreId].orEmpty() }
+
+    /** The top-level category with this name as Apple spells it (any case), or null (also for "Government"). */
+    fun genreIdForName(name: String): Int? = genres.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }?.id
+
+    /**
+     * The category the user follows most, as (category, how many followed podcasts are in it), for
+     * "Because you follow..." suggestions. Ties go to the category listed first; null if none is known.
+     */
+    fun topFollowedGenre(genresByFeed: Map<String, Set<Int>>, followedFeeds: Collection<String>): Pair<Genre, Int>? {
+        val counts = genres.map { g -> g to followedFeeds.count { g.id in genresByFeed[it].orEmpty() } }
+        return counts.filter { it.second > 0 }.maxByOrNull { it.second }
+    }
+
     fun genreName(id: Int): String = genres.firstOrNull { it.id == id }?.name ?: "Top podcasts"
 
     /** "1303,1488" -> {1303, 1488}; anything unreadable or unknown is dropped. */
@@ -37,11 +76,13 @@ object Discover {
     /**
      * What to listen to next: for each podcast, its next unplayed episode in the order its page lists
      * them; episodes a refresh found ("new") come first, then the most recently published.
+     * The episode in [excludeId] (the one on the Continue listening card) is left out.
      */
-    fun upNext(unplayed: List<Episode>, newestFirst: Boolean, limit: Int = 10): List<Episode> =
+    fun upNext(unplayed: List<Episode>, newestFirst: Boolean, limit: Int = 10, excludeId: Long = -1L): List<Episode> =
         unplayed.groupBy { it.podcastId }.values.mapNotNull { eps ->
             if (newestFirst) eps.maxByOrNull { it.pubDate } else eps.minByOrNull { it.pubDate }
-        }.sortedWith(compareByDescending<Episode> { it.isNew }.thenByDescending { it.pubDate }).take(limit)
+        }.filter { it.id != excludeId }
+            .sortedWith(compareByDescending<Episode> { it.isNew }.thenByDescending { it.pubDate }).take(limit)
 
     /** Chosen at app start, so the random categories hold still while the app is open and change next time. */
     val launchSeed: Long = System.nanoTime()

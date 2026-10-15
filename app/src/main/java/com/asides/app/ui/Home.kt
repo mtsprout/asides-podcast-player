@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
@@ -35,7 +36,9 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -121,11 +124,14 @@ internal fun ContinueCard(repo: Repository, player: PlayerConnection, onOpenEpis
 
 /** A row of what to listen to next: each followed podcast's next unplayed episode, new ones first. */
 @Composable
-internal fun UpNextRow(repo: Repository, podcasts: List<Podcast>, onOpenEpisode: (Long) -> Unit) {
+internal fun UpNextRow(repo: Repository, podcasts: List<Podcast>, player: PlayerConnection, onOpenEpisode: (Long) -> Unit) {
     val unplayed by repo.unplayed.collectAsState(emptyList())
     val context = LocalContext.current
     val newestFirst = remember { context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
-    val picks = remember(unplayed, newestFirst) { Discover.upNext(unplayed, newestFirst) }
+    // Same choice the Continue listening card makes, so the two never show the same episode.
+    val saved = remember { context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getLong(PlaybackService.LAST_EPISODE_PREF, -1L) }
+    val continueId = if (Review.info == null && player.currentEpisodeId > 0) player.currentEpisodeId else saved
+    val picks = remember(unplayed, newestFirst, continueId) { Discover.upNext(unplayed, newestFirst, excludeId = continueId) }
     val byId = remember(podcasts) { podcasts.associateBy { it.id } }
     if (picks.size < 2) return   // one podcast's next episode is just its tile; the row earns its space with a choice
     Column {
@@ -181,9 +187,11 @@ internal fun RecentAsides(repo: Repository, player: PlayerConnection, onOpenEpis
 internal fun ChartRow(
     repo: Repository, genreId: Int?, title: String, subscribed: Set<String>, subscribing: Set<String>,
     onOpenPreview: (SearchResult) -> Unit, onSeeAll: () -> Unit, onToggle: (String) -> Unit,
+    suggest: Boolean = false,
 ) {
     val chart by produceState<List<SearchResult>?>(null, genreId) {
-        value = try { repo.topPodcasts(genreId, 5) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        // A suggestions row leaves out shows already followed, so it looks further down the chart.
+        value = try { repo.topPodcasts(genreId, if (suggest) 25 else 5) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
     }
     Column {
         Row(Modifier.fillMaxWidth().clickable(onClick = onSeeAll), verticalAlignment = Alignment.CenterVertically) {
@@ -191,7 +199,7 @@ internal fun ChartRow(
             Text("See all", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
             Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
         }
-        val list = chart
+        val list = if (suggest) chart?.filter { it.feedUrl !in subscribed }?.take(5) else chart
         when {
             list == null -> CircularProgressIndicator(Modifier.padding(16.dp).size(24.dp))
             list.isEmpty() -> Text("Couldn't load this one.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -243,6 +251,17 @@ fun ChartScreen(repo: Repository, genreId: Int?, onOpenPreview: (SearchResult) -
         // Keep showing what we have while a longer list loads.
         try { chart = repo.topPodcasts(genreId, limit) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { if (chart == null) failed = true }
     }
+    // Searching inside this category: results replace the chart while there is something typed.
+    var query by remember(genreId) { mutableStateOf("") }
+    var found by remember(genreId) { mutableStateOf<List<SearchResult>?>(null) }
+    var searchFailed by remember(genreId) { mutableStateOf(false) }
+    LaunchedEffect(genreId, query) {
+        val term = query.trim()
+        searchFailed = false
+        if (genreId == null || term.length < 2) { found = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(400)
+        try { found = repo.search(term, genreId) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { found = null; searchFailed = true }
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(6),
         modifier = Modifier.fillMaxSize(),
@@ -259,8 +278,16 @@ fun ChartScreen(repo: Repository, genreId: Int?, onOpenPreview: (SearchResult) -
                 }
             }
         }
-        val list = chart
+        if (genreId != null) item(span = { GridItemSpan(maxLineSpan) }) {
+            OutlinedTextField(
+                query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
+                placeholder = { Text("Search in ${Discover.genreName(genreId)}") },
+                trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear") } },
+            )
+        }
+        val list = if (found != null) found else chart
         when {
+            searchFailed -> item(span = { GridItemSpan(maxLineSpan) }) { Text("Couldn't search just now.") }
             list == null && failed -> item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Couldn't load the chart.", Modifier.weight(1f))
@@ -280,7 +307,7 @@ fun ChartScreen(repo: Repository, genreId: Int?, onOpenPreview: (SearchResult) -
             }
         }
         val shown = chart
-        if (shown != null && shown.size >= limit && limit < 200) item(span = { GridItemSpan(maxLineSpan) }) {
+        if (found == null && shown != null && shown.size >= limit && limit < 200) item(span = { GridItemSpan(maxLineSpan) }) {
             TextButton(onClick = { limit += 25 }, Modifier.fillMaxWidth()) { Text("Show more") }
         }
     }

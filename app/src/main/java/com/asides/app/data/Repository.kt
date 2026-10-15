@@ -40,7 +40,7 @@ data class RestoreSummary(
 /** A downloaded feed; [feed] is null when the server said nothing had changed. */
 private class Fetched(val feed: ParsedFeed?, val etag: String?, val lastModified: String?)
 
-class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File) {
+class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File, val genreStore: GenreStore? = null) {
 
     private companion object {
         const val TAG = "Asides"
@@ -66,19 +66,26 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     /** Per podcast, how many episodes a refresh found that haven't been opened yet. */
     val newCounts = db.episodes().newCounts().map { rows -> rows.associate { it.podcastId to it.count } }
 
-    /** Searches the Apple/iTunes podcast directory. */
-    suspend fun search(term: String): List<SearchResult> = withContext(Dispatchers.IO) {
-        val url = "https://itunes.apple.com/search?media=podcast&limit=25&term=" +
+    /**
+     * Searches the Apple/iTunes podcast directory. With [genreId], only shows in that category: the
+     * search endpoint can't filter by category itself, so a longer list is fetched and filtered here.
+     */
+    suspend fun search(term: String, genreId: Int? = null): List<SearchResult> = withContext(Dispatchers.IO) {
+        val url = "https://itunes.apple.com/search?media=podcast&limit=${if (genreId == null) 25 else 200}&term=" +
             URLEncoder.encode(term, "UTF-8")
         val body = http.newCall(Request.Builder().url(url).build()).execute().use { it.body?.string() ?: "" }
         val results = JSONObject(body).optJSONArray("results") ?: return@withContext emptyList()
         (0 until results.length()).mapNotNull { i ->
             val o = results.getJSONObject(i)
             val feed = o.optString("feedUrl").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            if (genreId != null) {
+                val ids = o.optJSONArray("genreIds")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).toIntOrNull() } }.orEmpty()
+                if (!Discover.inGenre(ids, genreId)) return@mapNotNull null
+            }
             // iTunes serves any size by changing the dimensions in the URL; 600px suits the player.
             val art = o.optString("artworkUrl600").ifEmpty { o.optString("artworkUrl100") }.takeIf { it.isNotEmpty() }
             SearchResult(o.optString("collectionName"), feed, art)
-        }.distinctBy { it.feedUrl }
+        }.distinctBy { it.feedUrl }.take(50)
     }
 
     private val topCache = HashMap<Int, List<SearchResult>>()
@@ -128,7 +135,9 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         return http.newCall(request).execute().use { resp ->
             if (resp.code == 304) return@use Fetched(null, etag, lastModified)
             check(resp.isSuccessful) { "Feed returned HTTP ${resp.code}" }
-            Fetched(FeedParser.parse(resp.body!!.byteStream()), resp.header("ETag"), resp.header("Last-Modified"))
+            val feed = FeedParser.parse(resp.body!!.byteStream())
+            genreStore?.put(feedUrl, feed.categories.mapNotNull(Discover::genreIdForName).toSet())
+            Fetched(feed, resp.header("ETag"), resp.header("Last-Modified"))
         }
     }
 
@@ -189,8 +198,13 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
 
     private val refreshLock = Mutex()
 
+    /** A podcast whose categories haven't been learned yet is checked even if it was checked recently. */
+    private fun needsGenres(p: Podcast) = genreStore?.knows(p.feedUrl) == false
+
     private suspend fun refreshOne(p: Podcast): List<Episode> = withContext(Dispatchers.IO) {
-        val fetched = fetch(p.feedUrl, p.etag, p.lastModified)
+        // A feed whose categories aren't known yet is downloaded in full once, to learn them.
+        val learning = genreStore?.knows(p.feedUrl) == false
+        val fetched = if (learning) fetch(p.feedUrl) else fetch(p.feedUrl, p.etag, p.lastModified)
         val feed = fetched.feed
         if (feed == null) {
             Log.d(TAG, "${p.title}: feed unchanged (304), nothing downloaded")
@@ -216,7 +230,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     suspend fun refreshAll(force: Boolean = false): List<NewEpisodes> = refreshLock.withLock {
         val found = ArrayList<NewEpisodes>()
         for (p in db.podcasts().subscribedNow()) {
-            if (!force && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) continue
+            if (!force && !needsGenres(p) && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) continue
             val added = try {
                 refreshOne(p)
             } catch (e: Exception) {
@@ -231,7 +245,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     /** Re-checks one podcast, for pull-to-refresh on its page and when it is opened. */
     suspend fun refreshPodcast(podcastId: Long, force: Boolean = false) = refreshLock.withLock {
         val p = db.podcasts().podcast(podcastId) ?: return@withLock
-        if (!force && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) return@withLock
+        if (!force && !needsGenres(p) && System.currentTimeMillis() - p.lastCheckedAt < STALE_AFTER_MS) return@withLock
         try { refreshOne(p) } catch (e: Exception) { Log.w(TAG, "refresh failed for ${p.title}: ${e.message}") }
     }
 
