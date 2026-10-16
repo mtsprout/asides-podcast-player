@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Badge
@@ -611,26 +612,26 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { selected = emptySet(); anchor = null }) { Icon(Icons.Default.Close, "Clear selection") }
                     Text("${selected.size} selected", Modifier.weight(1f), softWrap = false, style = MaterialTheme.typography.titleMedium)
+                    val chosen = episodes.filter { it.id in selected }
+                    val allDownloaded = chosen.isNotEmpty() && chosen.all { it.id in downloads.done }
+                    IconButton(onClick = { selected = episodes.map { it.id }.toSet() }) { Icon(Icons.Default.SelectAll, "Select all") }
                     IconButton(onClick = {
                         // In the order the list shows them, so the first one listed plays first.
-                        val ids = episodes.filter { it.id in selected }.map { it.id }
+                        val ids = chosen.map { it.id }
                         selected = emptySet(); anchor = null
                         repo.addToQueue(ids)
                         Toast.makeText(context, "${plural(ids.size, "episode")} added to the top of the queue", Toast.LENGTH_SHORT).show()
                     }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to queue") }
-                    TextButton(onClick = { selected = episodes.map { it.id }.toSet() }) { Text("All") }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    val chosen = episodes.filter { it.id in selected }
-                    val allDownloaded = chosen.isNotEmpty() && chosen.all { it.id in downloads.done }
-                    TextButton(onClick = {
+                    IconButton(onClick = {
                         selected = emptySet(); anchor = null
                         scope.launch(Dispatchers.IO) {
                             if (allDownloaded) Downloads.removeAll(chosen.map { it.id }) else chosen.forEach(Downloads::start)
                         }
-                    }) { Text(if (allDownloaded) "Remove" else "Download") }
-                    TextButton(onClick = { markSelected(true) }) { Text("Played") }
-                    TextButton(onClick = { markSelected(false) }) { Text("Unplayed") }
+                    }) {
+                        if (allDownloaded) Icon(Icons.Default.Delete, "Remove downloads") else Icon(Icons.Default.Download, "Download")
+                    }
+                    IconButton(onClick = { markSelected(true) }) { Icon(Icons.Default.CheckCircle, "Mark as played") }
+                    IconButton(onClick = { markSelected(false) }) { Icon(Icons.Default.RadioButtonUnchecked, "Mark as unplayed") }
                 }
                 if (selected.size == 1) {
                     Text(
