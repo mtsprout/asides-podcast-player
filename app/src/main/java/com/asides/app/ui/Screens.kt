@@ -699,13 +699,7 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
                 }
                 item {
                     Text(
-                        buildAnnotatedString {
-                            val big = SpanStyle(fontSize = 24.sp)
-                            withStyle(big) { append("L") }
-                            append("ATEST ")
-                            withStyle(big) { append("E") }
-                            append("PISODES")
-                        }, style = MaterialTheme.typography.titleMedium,
+                        "LATEST EPISODES", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold, fontSize = 20.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                         modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
                     )
