@@ -3,7 +3,6 @@ package com.asides.app.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.viewinterop.AndroidView
+import android.graphics.drawable.Animatable
+import android.widget.ImageView
 import androidx.compose.ui.unit.dp
 import com.asides.app.R
 import kotlinx.coroutines.delay
@@ -37,7 +38,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun StartupSplash(version: String) {
     var visible by rememberSaveable { mutableStateOf(true) }
+    // The name and version come first; the logo's own animation starts once they have been seen.
+    var logoStarted by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        if (!logoStarted) delay(LOGO_DELAY_MS)
+        logoStarted = true
         delay(HOLD_MS)
         visible = false
     }
@@ -51,7 +56,24 @@ fun StartupSplash(version: String) {
             contentAlignment = Alignment.Center,
         ) {
             // The system splash draws its icon on a 288dp canvas; match it.
-            Image(painterResource(R.drawable.splash_icon_static), null, Modifier.size(288.dp))
+            // Invisible until its turn, then the parentheses slide in and the sound wave grows.
+            AndroidView(
+                factory = { ctx ->
+                    ImageView(ctx).apply {
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        setImageDrawable(ctx.getDrawable(R.drawable.splash_icon))
+                    }
+                },
+                update = { v ->
+                    if (logoStarted) {
+                        if (v.alpha == 0f) {
+                            v.alpha = 1f
+                            (v.drawable as? Animatable)?.start()
+                        }
+                    } else v.alpha = 0f
+                },
+                modifier = Modifier.size(288.dp),
+            )
             // Just below the disc (about 90dp below centre), without moving the icon off the system splash's spot.
             Wordmark(fontSize = 38.sp, parentheses = false, modifier = Modifier.offset(y = 140.dp))
             Text(
@@ -64,4 +86,5 @@ fun StartupSplash(version: String) {
     }
 }
 
-private const val HOLD_MS = 3660L
+private const val LOGO_DELAY_MS = 1000L
+private const val HOLD_MS = 3000L
