@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **1.0.7**. Everything described here works and gets daily use. It is a young app, so you may
+> Status: **1.0.8**. Everything described here works and gets daily use. It is a young app, so you may
 > still hit rough edges; please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -64,6 +64,11 @@ screen off, so it fits walks, drives and chores.
 - **Move subscriptions in or out (OPML).** Settings → *Subscriptions (OPML)* exports the podcasts you
   follow as a standard OPML file, and imports one from another podcast app (only podcasts you don't
   follow yet are added).
+- **Play queue.** Select episodes on a podcast's page and tap the queue icon: they go to the top of the
+  queue and play ahead of the usual next-unplayed-episode rule, across podcasts. The queue icon at the
+  top left of the Library opens it (reorder with the arrows, tap to play now). Podcasts you don't follow
+  have an add-to-queue button on their preview page; the episode is saved quietly, with the podcast kept
+  out of your Library.
 - **Back up and restore.** In Settings, *Back up…* saves your asides (transcripts, plus any
   recordings that were kept), your subscriptions and your played marks to one file you can keep anywhere: Drive,
   Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so

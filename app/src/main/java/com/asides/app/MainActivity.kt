@@ -72,6 +72,7 @@ import com.asides.app.ui.PlayerConnection
 import com.asides.app.ui.PodcastScreen
 import com.asides.app.ui.SettingsScreen
 import com.asides.app.ui.PreviewScreen
+import com.asides.app.ui.QueueScreen
 import com.asides.app.ui.TranscriptScreen
 
 class MainActivity : ComponentActivity() {
@@ -259,6 +260,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                         nav.navigate("preview?feed=${Uri.encode(it.feedUrl)}&title=${Uri.encode(it.title)}&art=${Uri.encode(it.artworkUrl.orEmpty())}")
                     },
                     onOpenSettings = { nav.navigate("settings") },
+                    onOpenQueue = { nav.navigate("queue") },
                     player = player,
                     onOpenEpisode = { nav.navigate("episode/$it") },
                     onOpenAsides = { nav.navigateTab("annotations") },
@@ -271,6 +273,7 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                 }
             }
             composable("settings") { SettingsScreen(repo, player) }
+            composable("queue") { QueueScreen(repo, player) }
             composable(
                 "preview?feed={feed}&title={title}&art={art}",
                 arguments = listOf("feed", "title", "art").map {

@@ -99,7 +99,8 @@ fun EpisodeScreen(
     // What will play next, in the order the podcast's page lists episodes.
     val context = LocalContext.current
     val newestFirst = remember { context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
-    val nextEpisode by produceState<Episode?>(null, episode?.id, episode?.played) {
+    val queued by repo.queue.collectAsState()
+    val nextEpisode by produceState<Episode?>(null, episode?.id, episode?.played, queued) {
         value = episode?.let { repo.nextEpisode(it.id, newestFirst) }
     }
 

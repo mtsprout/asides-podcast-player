@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.asides.app.service.Transcriber
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,7 +46,7 @@ data class RestoreSummary(
 /** A downloaded feed; [feed] is null when the server said nothing had changed. */
 private class Fetched(val feed: ParsedFeed?, val etag: String?, val lastModified: String?)
 
-class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File, val genreStore: GenreStore? = null) {
+class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File, val genreStore: GenreStore? = null, val queueStore: QueueStore? = null) {
 
     private companion object {
         const val TAG = "Asides"
@@ -292,10 +294,48 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         }
     }
 
-    /** What should play after [episodeId] finishes, or null if nothing is left to hear. */
+    /** The play queue, first entry plays next. */
+    val queue: StateFlow<List<Long>> = queueStore?.ids ?: MutableStateFlow(emptyList())
+
+    /** What should play after [episodeId] finishes, or null if nothing is left to hear. The queue comes first. */
     suspend fun nextEpisode(episodeId: Long, newestFirst: Boolean): Episode? {
+        for (id in queue.value) {
+            if (id == episodeId) continue
+            db.episodes().episode(id)?.let { return it }
+            queueStore?.remove(id) // its episode is gone
+        }
         val current = db.episodes().episode(episodeId) ?: return null
         return NextEpisode.pick(db.episodes().episodesNow(current.podcastId), episodeId, newestFirst)
+    }
+
+    /** Puts episodes at the top of the queue, in the order given. */
+    fun addToQueue(episodeIds: List<Long>) { queueStore?.addToTop(episodeIds) }
+    fun removeFromQueue(episodeId: Long) { queueStore?.remove(episodeId) }
+    fun moveInQueue(from: Int, to: Int) { queueStore?.move(from, to) }
+    fun clearQueue() { queueStore?.clear() }
+
+    /** The queued episodes with their podcasts, in play order. */
+    suspend fun queuedEpisodes(ids: List<Long>): List<Pair<Episode, Podcast?>> = withContext(Dispatchers.IO) {
+        ids.mapNotNull { id -> db.episodes().episode(id)?.let { it to db.podcasts().podcast(it.podcastId) } }
+    }
+
+    /**
+     * Saves an episode from a podcast you don't follow so it can be queued and played like any other:
+     * the podcast is kept as an unsubscribed row (out of the Library, not refreshed) and the episode
+     * is added to it. Returns the episode's id.
+     */
+    suspend fun saveEpisodeFrom(feedUrl: String, title: String, artworkUrl: String?, e: ParsedEpisode): Long? = withContext(Dispatchers.IO) {
+        db.withTransaction {
+            val podcasts = db.podcasts()
+            val podcastId = podcasts.idForFeed(feedUrl) ?: run {
+                podcasts.insert(Podcast(title = title.ifEmpty { feedUrl }, feedUrl = feedUrl, artworkUrl = artworkUrl, subscribed = false))
+                podcasts.idForFeed(feedUrl)!!
+            }
+            BackupMatch.episode(db.episodes().known(podcastId), e.guid, e.audioUrl)?.let { return@withTransaction it.id }
+            db.episodes().insertAll(listOf(
+                Episode(podcastId = podcastId, title = e.title, pubDate = e.pubDate, audioUrl = e.audioUrl, durationMs = e.durationMs, guid = e.guid),
+            )).first().takeIf { it != -1L }
+        }
     }
 
     suspend fun episodeNow(id: Long): Episode? = db.episodes().episode(id)

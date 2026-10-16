@@ -176,6 +176,8 @@ class PlaybackService : MediaSessionService() {
                 // so a play press after Android stops this service resumes the right one.
                 if (Review.info == null) mediaItem?.mediaId?.toLongOrNull()?.let {
                     getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
+                    // Whatever starts playing leaves the queue: it is no longer "up next".
+                    repo.removeFromQueue(it)
                 }
                 // Something else was started (not by us): the review is over, and there is no going back.
                 val review = Review.info ?: return

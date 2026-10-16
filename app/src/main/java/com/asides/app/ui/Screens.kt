@@ -16,6 +16,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -227,6 +231,7 @@ fun LibraryScreen(
     onOpenPodcast: (Long) -> Unit,
     onOpenPreview: (SearchResult) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenQueue: () -> Unit,
     player: PlayerConnection,
     onOpenEpisode: (Long) -> Unit,
     onOpenAsides: () -> Unit,
@@ -285,6 +290,12 @@ fun LibraryScreen(
         item(span = FullWidth) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Wordmark(fontSize = 44.sp, parentheses = true)
+                val queued by repo.queue.collectAsState()
+                IconButton(onClick = onOpenQueue, Modifier.align(Alignment.CenterStart)) {
+                    BadgedBox(badge = { if (queued.isNotEmpty()) Badge { Text("${queued.size}") } }) {
+                        Icon(Icons.AutoMirrored.Filled.QueueMusic, "Play queue", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 IconButton(onClick = onOpenSettings, Modifier.align(Alignment.CenterEnd)) {
                     Icon(Icons.Default.Settings, "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -600,7 +611,16 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { selected = emptySet(); anchor = null }) { Icon(Icons.Default.Close, "Clear selection") }
                     Text("${selected.size} selected", Modifier.weight(1f), softWrap = false, style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = {
+                        // In the order the list shows them, so the first one listed plays first.
+                        val ids = episodes.filter { it.id in selected }.map { it.id }
+                        selected = emptySet(); anchor = null
+                        repo.addToQueue(ids)
+                        Toast.makeText(context, "${plural(ids.size, "episode")} added to the top of the queue", Toast.LENGTH_SHORT).show()
+                    }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to queue") }
                     TextButton(onClick = { selected = episodes.map { it.id }.toSet() }) { Text("All") }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     val chosen = episodes.filter { it.id in selected }
                     val allDownloaded = chosen.isNotEmpty() && chosen.all { it.id in downloads.done }
                     TextButton(onClick = {
@@ -635,6 +655,7 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
     var failed by remember { mutableStateOf(false) }
     var subscribing by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     suspend fun load() {
         failed = false
@@ -706,9 +727,23 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
                     HorizontalDivider()
                 }
                 items(f.episodes.sortedByDescending { it.pubDate }.take(10)) { e ->
-                    Column(Modifier.fillMaxWidth().padding(vertical = EpisodeListStyle.rowPadding)) {
-                        Text(e.title, style = EpisodeListStyle.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(formatDate(e.pubDate), style = EpisodeListStyle.meta)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).padding(vertical = EpisodeListStyle.rowPadding)) {
+                            Text(e.title, style = EpisodeListStyle.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(formatDate(e.pubDate), style = EpisodeListStyle.meta)
+                        }
+                        // Works for podcasts you don't follow: the episode is saved quietly so it can be played and kept.
+                        IconButton(onClick = {
+                            scope.launch {
+                                val id = try {
+                                    repo.saveEpisodeFrom(feedUrl, title.ifEmpty { f.title }, artworkUrl ?: f.artworkUrl, e)
+                                } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }
+                                if (id != null) {
+                                    repo.addToQueue(listOf(id))
+                                    Toast.makeText(context, "Added to the top of the queue", Toast.LENGTH_SHORT).show()
+                                } else Toast.makeText(context, "Couldn't add that episode", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to queue", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                     HorizontalDivider()
                 }
