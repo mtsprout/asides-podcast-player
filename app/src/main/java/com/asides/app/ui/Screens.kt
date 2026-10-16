@@ -699,7 +699,7 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
                 }
                 item {
                     Text(
-                        "Latest episodes", style = MaterialTheme.typography.titleMedium,
+                        "LATEST EPISODES", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
                     )
                     HorizontalDivider()
