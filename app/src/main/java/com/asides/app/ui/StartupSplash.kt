@@ -1,7 +1,12 @@
 package com.asides.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,7 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.viewinterop.AndroidView
-import android.graphics.drawable.Animatable
+
 import android.widget.ImageView
 import androidx.compose.ui.unit.dp
 import com.asides.app.R
@@ -38,8 +43,12 @@ import kotlinx.coroutines.delay
 @Composable
 fun StartupSplash(version: String) {
     var visible by rememberSaveable { mutableStateOf(true) }
-    // The name and version come first; the logo's own animation starts once they have been seen.
+    // The logo's own animation and the name and version rise together, landing at the same moment.
     var logoStarted by rememberSaveable { mutableStateOf(false) }
+    val arrival = remember { Animatable(if (logoStarted) 1f else 0f) }
+    LaunchedEffect(logoStarted) {
+        if (logoStarted) arrival.animateTo(1f, tween(ARRIVAL_MS, easing = CubicBezierEasing(0.215f, 0.61f, 0.355f, 1f)))
+    }
     LaunchedEffect(Unit) {
         if (!logoStarted) delay(LOGO_DELAY_MS)
         logoStarted = true
@@ -68,23 +77,32 @@ fun StartupSplash(version: String) {
                     if (logoStarted) {
                         if (v.alpha == 0f) {
                             v.alpha = 1f
-                            (v.drawable as? Animatable)?.start()
+                            (v.drawable as? android.graphics.drawable.Animatable)?.start()
                         }
                     } else v.alpha = 0f
                 },
                 modifier = Modifier.size(288.dp),
             )
-            // Just below the disc (about 90dp below centre), without moving the icon off the system splash's spot.
-            Wordmark(fontSize = 38.sp, parentheses = false, modifier = Modifier.offset(y = 140.dp))
-            Text(
-                "Version $version",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 32.dp),
-            )
+            // Just below the disc, without moving the icon off the system splash's spot.
+            Column(
+                Modifier.offset(y = 152.dp).graphicsLayer {
+                    alpha = arrival.value
+                    translationY = (1f - arrival.value) * 56.dp.toPx()
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Wordmark(fontSize = 38.sp, parentheses = false)
+                Text(
+                    "Version $version",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+            }
         }
     }
 }
 
-private const val LOGO_DELAY_MS = 1000L
-private const val HOLD_MS = 3000L
+// The parentheses slide for 1300 ms (res/animator/paren_*_in.xml); the text takes the same time.
+private const val ARRIVAL_MS = 1300
+private const val LOGO_DELAY_MS = 300L
+private const val HOLD_MS = 3700L
