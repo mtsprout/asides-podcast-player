@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **1.0.4**. Everything described here works and gets daily use. It is a young app, so you may
+> Status: **1.0.7**. Everything described here works and gets daily use. It is a young app, so you may
 > still hit rough edges; please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -24,6 +24,9 @@ screen off, so it fits walks, drives and chores.
   Asides tab, and that episode plays from ten seconds before the note. Your place isn't touched: a
   bar shows where you were, and **Return** (or the reviewed episode ending) puts you back there,
   paused. Nothing is marked played and no position is saved for the episode you reviewed.
+- **Search, fix, share.** The Asides tab has a search box (every word must match the note, episode or
+  podcast). Open an aside's transcript to correct it (a corrected transcript is never re-transcribed)
+  or share it; the tab's buttons share, or save as a Markdown file, everything shown.
 - **A front page that starts where you left off.** A *Continue listening* card with a play button,
   an *Up next* row (each podcast's next unplayed episode, new ones first) and your most recent aside
   (tap it to hear it in context).
@@ -58,6 +61,9 @@ screen off, so it fits walks, drives and chores.
   an "N new" badge on the podcast.
 - **Optional notifications.** Tap the bell on a podcast's page to be notified when it has a new
   episode. They are off by default, one notification per podcast, and tapping one opens the episode.
+- **Move subscriptions in or out (OPML).** Settings → *Subscriptions (OPML)* exports the podcasts you
+  follow as a standard OPML file, and imports one from another podcast app (only podcasts you don't
+  follow yet are added).
 - **Back up and restore.** In Settings, *Back up…* saves your asides (transcripts, plus any
   recordings that were kept), your subscriptions and your played marks to one file you can keep anywhere: Drive,
   Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so

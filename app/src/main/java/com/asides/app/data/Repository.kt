@@ -7,6 +7,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -86,6 +90,34 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             val art = o.optString("artworkUrl600").ifEmpty { o.optString("artworkUrl100") }.takeIf { it.isNotEmpty() }
             SearchResult(o.optString("collectionName"), feed, art)
         }.distinctBy { it.feedUrl }.take(50)
+    }
+
+    /** The followed podcasts as an OPML subscription list. */
+    suspend fun exportOpml(): String = Opml.encode(db.podcasts().subscribedNow())
+
+    data class OpmlResult(val added: Int, val alreadyFollowed: Int, val failed: Int)
+
+    /**
+     * Follows every podcast in [feeds] that isn't followed already, a few at a time. [onProgress] gets
+     * (done, total) as each finishes. A feed that can't be reached is counted, not fatal.
+     */
+    suspend fun importOpml(feeds: List<OpmlFeed>, onProgress: (Int, Int) -> Unit = { _, _ -> }): OpmlResult = coroutineScope {
+        val have = db.podcasts().subscribedNow().map { it.feedUrl.lowercase() }.toSet()
+        val todo = feeds.filter { it.feedUrl.lowercase() !in have }
+        val gate = kotlinx.coroutines.sync.Semaphore(4)
+        val done = java.util.concurrent.atomic.AtomicInteger()
+        val results = todo.map { f ->
+            async {
+                gate.withPermit {
+                    val ok = try { subscribe(f.feedUrl); true } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                        Log.w(TAG, "OPML import: couldn't follow ${f.feedUrl}: ${e.message}"); false
+                    }
+                    onProgress(done.incrementAndGet(), todo.size)
+                    ok
+                }
+            }
+        }.awaitAll()
+        OpmlResult(results.count { it }, feeds.size - todo.size, results.count { !it })
     }
 
     private val topCache = HashMap<Int, List<SearchResult>>()
@@ -458,6 +490,9 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         db.episodes().savePosition(episodeId, 0, 0)
         onPlayed(listOf(episodeId))
     }
+
+    /** Saves a corrected transcript. Only a missing transcript is ever re-transcribed, so edits are kept. */
+    suspend fun updateTranscript(id: Long, text: String) = db.annotations().setTranscript(id, text.trim())
 
     suspend fun clearTranscripts() = db.annotations().clearTranscripts()
 

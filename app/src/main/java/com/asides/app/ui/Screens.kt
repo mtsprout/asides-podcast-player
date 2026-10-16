@@ -39,6 +39,11 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
@@ -677,11 +682,18 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
             }
             f == null -> item { CircularProgressIndicator(Modifier.padding(vertical = 24.dp)) }
             else -> {
-                if (f.description.isNotEmpty()) item {
+                item {
                     Column(Modifier.padding(top = 16.dp)) {
-                        Text(f.description, maxLines = if (expanded) Int.MAX_VALUE else 6, overflow = TextOverflow.Ellipsis)
-                        if (f.description.length > 280) {
-                            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Less" else "More") }
+                        Text(
+                            plural(f.episodes.size, "episode"), style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = if (f.description.isEmpty()) 0.dp else 6.dp),
+                        )
+                        if (f.description.isNotEmpty()) {
+                            Text(f.description, maxLines = if (expanded) Int.MAX_VALUE else 6, overflow = TextOverflow.Ellipsis)
+                            if (f.description.length > 280) {
+                                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Less" else "More") }
+                            }
                         }
                     }
                 }
@@ -786,28 +798,50 @@ private fun AnnotationItem(
     HorizontalDivider()
 }
 
-/** The full transcript of one note, with the recording and where in the episode it was made. */
+/** The full transcript of one note, with the recording and where in the episode it was made. It can be corrected or shared. */
 @Composable
 fun TranscriptScreen(repo: Repository, annotationId: Long, player: PlayerConnection) {
     val a by repo.annotation(annotationId).collectAsState(null)
+    val rows by repo.allAnnotations.collectAsState(emptyList())
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
     val note = a ?: return
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Aside at ${formatTime(note.positionMs)}", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    DateFormat.getMediumDateFormat(LocalContext.current).format(Date(note.createdAt)),
+                    DateFormat.getMediumDateFormat(context).format(Date(note.createdAt)),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             IconButton(enabled = note.audioPath.isNotEmpty(), onClick = { player.playClip(note.audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
+            IconButton(
+                enabled = !editing && rows.any { it.id == annotationId },
+                onClick = {
+                    val row = rows.first { it.id == annotationId }
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, AsidesText.plain(row))
+                    context.startActivity(Intent.createChooser(send, "Share aside"))
+                },
+            ) { Icon(Icons.Default.Share, "Share aside") }
         }
         HorizontalDivider()
-        SelectionContainer {
-            Text(
-                note.transcript?.takeIf { it.isNotBlank() } ?: "No transcript available.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
+        if (editing) {
+            OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text("Transcript") }, minLines = 4)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { scope.launch { repo.updateTranscript(annotationId, draft); editing = false } }) { Text("Save") }
+                TextButton(onClick = { editing = false }) { Text("Cancel") }
+            }
+        } else {
+            SelectionContainer {
+                Text(
+                    note.transcript?.takeIf { it.isNotBlank() } ?: "No transcript available.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            TextButton(onClick = { draft = note.transcript.orEmpty(); editing = true }) { Text("Edit transcript") }
         }
     }
 }
@@ -821,14 +855,41 @@ fun AllAnnotationsScreen(
     onOpenEpisode: (Long) -> Unit,
     onOpenTranscript: (Long) -> Unit,
 ) {
-    val rows by repo.allAnnotations.collectAsState(emptyList())
+    val allRows by repo.allAnnotations.collectAsState(emptyList())
     val scope = rememberCoroutineScope()
-    if (rows.isEmpty()) {
+    val context = LocalContext.current
+    var query by remember { mutableStateOf("") }
+    val rows = remember(allRows, query) { allRows.filter { AsidesText.matches(it, query) } }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(AsidesText.markdown(rows).toByteArray()) } }
+        }
+    }
+    if (allRows.isEmpty()) {
         Text("No asides yet. Triple-press your headset button while an episode is playing.", Modifier.padding(16.dp))
         return
     }
     val byPodcast = rows.groupBy { it.podcastTitle }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        item(key = "search") {
+            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    query, { query = it }, Modifier.weight(1f), singleLine = true,
+                    placeholder = { Text("Search asides") },
+                    trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear") } },
+                )
+                IconButton(
+                    enabled = rows.isNotEmpty(),
+                    onClick = {
+                        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, AsidesText.markdown(rows))
+                        context.startActivity(Intent.createChooser(send, "Share asides"))
+                    },
+                ) { Icon(Icons.Default.Share, "Share asides") }
+                IconButton(enabled = rows.isNotEmpty(), onClick = { save.launch("asides.md") }) { Icon(Icons.Default.Save, "Save asides as a file") }
+            }
+            if (rows.isEmpty()) Text("No asides match.", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         byPodcast.forEach { (podcast, podcastRows) ->
             item(key = "p-$podcast") {
                 Row(Modifier.padding(top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {

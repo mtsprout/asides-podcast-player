@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import com.asides.app.AsidesApp
 import com.asides.app.data.BackupException
 import com.asides.app.data.Repository
+import com.asides.app.data.Opml
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -124,6 +127,49 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
                 "Couldn't restore: ${e.message ?: e.javaClass.simpleName}"
             }
             busy = false
+        }
+    }
+
+    var opmlMessage by remember { mutableStateOf<String?>(null) }
+    var opmlBusy by remember { mutableStateOf(false) }
+    val opmlExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            opmlBusy = true; opmlMessage = null
+            opmlMessage = try {
+                val xml = repo.exportOpml()
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(xml.toByteArray()) } ?: error("couldn't open that location")
+                }
+                "Saved your subscriptions."
+            } catch (e: Exception) {
+                "Couldn't save the list: ${e.message ?: e.javaClass.simpleName}"
+            }
+            opmlBusy = false
+        }
+    }
+    val opmlImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            opmlBusy = true; opmlMessage = null
+            opmlMessage = try {
+                val feeds = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { Opml.parse(it) } ?: error("couldn't open that file")
+                }
+                if (feeds.isEmpty()) "No podcasts found in that file." else {
+                    val r = repo.importOpml(feeds) { done, total -> opmlMessage = "Following $done of $total…" }
+                    buildString {
+                        append(if (r.added > 0) "Now following ${plural(r.added, "new podcast")}." else "Nothing new to follow.")
+                        if (r.alreadyFollowed > 0) append(" ${r.alreadyFollowed} already followed.")
+                        if (r.failed > 0) append(" ${r.failed} couldn't be reached; try again later.")
+                    }
+                }
+            } catch (e: IllegalArgumentException) {
+                e.message ?: "That file isn't an OPML subscription list."
+            } catch (e: Exception) {
+                "Couldn't import: ${e.message ?: e.javaClass.simpleName}"
+            }
+            opmlBusy = false
         }
     }
 
@@ -249,6 +295,23 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             backupMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+
+        Section("Subscriptions (OPML)") {
+            Text(
+                "OPML is the subscription list other podcast apps read and write. Export yours to move to another app, " +
+                    "or import a list from one to follow all its podcasts here. Importing only adds podcasts you " +
+                    "don't follow yet.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = !opmlBusy, onClick = { opmlExport.launch("asides-subscriptions.opml") }) { Text("Export…") }
+                OutlinedButton(enabled = !opmlBusy, onClick = {
+                    opmlImport.launch(arrayOf("text/x-opml", "text/xml", "application/xml", "application/octet-stream", "text/plain"))
+                }) { Text("Import…") }
+            }
+            if (opmlBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            opmlMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         }
 
         Section("How asides work") {
