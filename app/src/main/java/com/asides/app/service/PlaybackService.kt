@@ -178,6 +178,11 @@ class PlaybackService : MediaSessionService() {
                     getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
                     // Whatever starts playing leaves the queue: it is no longer "up next".
                     repo.removeFromQueue(it)
+                    // A podcast with its own speed plays at it; any other at the normal one.
+                    val podcastId = mediaItem?.mediaMetadata?.extras?.getLong(EXTRA_PODCAST_ID, -1L) ?: -1L
+                    val own = if (podcastId > 0) (application as AsidesApp).podcastSettings.get(podcastId).speed else null
+                    val speed = own ?: getSharedPreferences("prefs", MODE_PRIVATE).getFloat("speed", 1f)
+                    if (player.playbackParameters.speed != speed) player.setPlaybackSpeed(speed)
                 }
                 // Something else was started (not by us): the review is over, and there is no going back.
                 val review = Review.info ?: return
@@ -265,7 +270,7 @@ class PlaybackService : MediaSessionService() {
                             result.setException(UnsupportedOperationException("Nothing to resume"))
                         } else {
                             val item = mediaItemFor(episode, repo.podcastNow(episode.podcastId))
-                            result.set(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, episode.positionMs))
+                            result.set(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, (application as AsidesApp).podcastSettings.startPositionMs(episode)))
                         }
                     }
                     return result
@@ -470,7 +475,7 @@ class PlaybackService : MediaSessionService() {
             // Only if nothing else has been started in the meantime.
             val stillThere = player.currentMediaItem?.mediaId?.toLongOrNull() == finishedId
             if (stillThere && (!onlyIfEnded || player.playbackState == Player.STATE_ENDED)) {
-                player.setMediaItem(item, next.positionMs)
+                player.setMediaItem(item, (application as AsidesApp).podcastSettings.startPositionMs(next))
                 player.prepare()
                 player.play()
             } else releaseForegroundHold()

@@ -3,6 +3,7 @@ package com.asides.app
 import android.app.Application
 import com.asides.app.data.AppDb
 import com.asides.app.data.GenreStore
+import com.asides.app.data.PodcastSettingsStore
 import com.asides.app.data.QueueStore
 import com.asides.app.data.Repository
 import com.asides.app.service.Downloads
@@ -21,6 +22,8 @@ class AsidesApp : Application() {
         private set
     lateinit var transcriber: Transcriber
         private set
+    lateinit var podcastSettings: PodcastSettingsStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,6 +31,7 @@ class AsidesApp : Application() {
         transcriber = Transcriber(this)
         repo = Repository(AppDb.create(this), OkHttpClient(), dir, GenreStore(getSharedPreferences("genres", MODE_PRIVATE)),
             QueueStore(getSharedPreferences("queue", MODE_PRIVATE)))
+        podcastSettings = PodcastSettingsStore(getSharedPreferences("podcast_settings", MODE_PRIVATE))
         AppSettings.init(this)
         Downloads.init(this)
         repo.saveAudio = { AppSettings.saveAudio }
@@ -36,7 +40,16 @@ class AsidesApp : Application() {
                 CoroutineScope(Dispatchers.IO).launch { ids.forEach(Downloads::remove) }
             }
         }
+        // Podcasts set to download new episodes: fetch the newest few, on Wi-Fi only.
+        repo.onNewEpisodes = { podcast, added ->
+            if (podcastSettings.get(podcast.id).autoDownload) {
+                added.sortedByDescending { it.pubDate }.take(AUTO_DOWNLOAD_MAX).forEach { Downloads.start(it, wifiOnly = true) }
+            }
+        }
         Notifier.createChannel(this)
         FeedRefreshWorker.schedule(this)
     }
 }
+
+/** The most episodes one refresh downloads on its own for a podcast. */
+private const val AUTO_DOWNLOAD_MAX = 3

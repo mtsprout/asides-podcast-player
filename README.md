@@ -64,6 +64,10 @@ screen off, so it fits walks, drives and chores.
 - **Move subscriptions in or out (OPML).** Settings → *Subscriptions (OPML)* exports the podcasts you
   follow as a standard OPML file, and imports one from another podcast app (only podcasts you don't
   follow yet are added).
+- **Per-podcast settings.** The sliders icon on a podcast's page sets, for that podcast only: its own
+  playback speed, a skip-intro length (new episodes start that many seconds in; ones you've started
+  carry on where you left off), and whether new episodes are downloaded automatically on Wi-Fi (the
+  newest three per refresh).
 - **Play queue.** Select episodes on a podcast's page and tap the queue icon: they go to the top of the
   queue and play ahead of the usual next-unplayed-episode rule, across podcasts. The queue icon at the
   top left of the Library opens it (reorder with the arrows, tap to play now). Podcasts you don't follow

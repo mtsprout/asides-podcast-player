@@ -247,6 +247,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         } else {
             applyFeed(p.id, feed, fetched, firstDownload = p.lastCheckedAt < 0).also {
                 Log.d(TAG, "${p.title}: downloaded ${feed.episodes.size} episodes, ${it.size} new")
+                if (it.isNotEmpty() && p.lastCheckedAt >= 0) onNewEpisodes(p, it)
             }
         }
     }
@@ -510,6 +511,9 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
 
     suspend fun savePosition(episodeId: Long, positionMs: Long, durationMs: Long) =
         db.episodes().savePosition(episodeId, positionMs, durationMs)
+
+    /** Told which episodes a refresh just found for a podcast (not the first download). */
+    var onNewEpisodes: (Podcast, List<Episode>) -> Unit = { _, _ -> }
 
     /** Told which episodes were just marked played (the app uses it to clear their downloads). */
     var onPlayed: (Collection<Long>) -> Unit = {}

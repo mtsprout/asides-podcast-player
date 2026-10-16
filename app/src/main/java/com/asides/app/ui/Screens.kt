@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -445,6 +446,7 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE)
     var refreshing by remember { mutableStateOf(false) }
+    var showPodcastSettings by remember { mutableStateOf(false) }
     // Look for new episodes when the page opens (skipped if checked in the last half hour).
     LaunchedEffect(podcastId) { repo.refreshPodcast(podcastId) }
     val downloads by Downloads.state.collectAsState()
@@ -488,6 +490,11 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
         scope.launch { repo.setPlayed(ids, played) }
     }
 
+    if (showPodcastSettings) PodcastSettingsDialog(
+        store = (context.applicationContext as com.asides.app.AsidesApp).podcastSettings,
+        podcastId = podcastId, title = podcast?.title.orEmpty(), onDismiss = { showPodcastSettings = false },
+    )
+
     PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = { scope.launch { refreshing = true; repo.refreshPodcast(podcastId, force = true); refreshing = false } },
@@ -503,6 +510,9 @@ fun PodcastScreen(repo: Repository, podcastId: Long, onOpenEpisode: (Long) -> Un
                     podcast?.title.orEmpty(), style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f).padding(start = 16.dp),
                 )
+                IconButton(onClick = { showPodcastSettings = true }) {
+                    Icon(Icons.Default.Tune, "Podcast settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 val notify = podcast?.notifyNew == true
                 IconButton(onClick = {
                     scope.launch { repo.setNotify(podcastId, !notify) }

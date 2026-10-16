@@ -18,6 +18,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.asides.app.service.Autoplay
+import com.asides.app.service.EXTRA_PODCAST_ID
 import com.asides.app.service.PlayerCommands
 import com.asides.app.service.SleepTimer
 import com.asides.app.service.mediaItemFor
@@ -27,6 +28,7 @@ import com.asides.app.data.Podcast
 
 /** UI-side handle on the playback service's player, plus a tiny player for annotation clips. */
 class PlayerConnection(private val context: Context) {
+    private val settings get() = (context.applicationContext as com.asides.app.AsidesApp).podcastSettings
     private var controller: MediaController? = null
     private var clip: MediaPlayer? = null
 
@@ -56,7 +58,9 @@ class PlayerConnection(private val context: Context) {
     fun reloadSettings() {
         val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         autoplay = prefs.getBoolean(Autoplay.PREF, true)
-        changeSpeed(prefs.getFloat("speed", 1f))
+        val v = prefs.getFloat("speed", 1f)
+        controller?.setPlaybackSpeed(v)
+        speed = v
     }
 
     fun toggleAutoplay() {
@@ -134,7 +138,7 @@ class PlayerConnection(private val context: Context) {
     fun play(episode: Episode, podcast: Podcast? = null) {
         val c = controller ?: return
         if (currentEpisodeId != episode.id) {
-            c.setMediaItem(mediaItemFor(episode, podcast), episode.positionMs)
+            c.setMediaItem(mediaItemFor(episode, podcast), settings.startPositionMs(episode))
             c.prepare()
         }
         c.play()
@@ -163,7 +167,10 @@ class PlayerConnection(private val context: Context) {
         val v = (Math.round(value.coerceIn(MIN_SPEED, MAX_SPEED) * 10) / 10f)
         controller?.setPlaybackSpeed(v)
         speed = v
-        context.getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putFloat("speed", v).apply()
+        // A podcast with its own speed keeps the change for itself; otherwise it is the new normal speed.
+        val podcastId = controller?.mediaMetadata?.extras?.getLong(EXTRA_PODCAST_ID, -1L) ?: -1L
+        if (podcastId > 0 && settings.get(podcastId).speed != null) settings.setSpeed(podcastId, v)
+        else context.getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putFloat("speed", v).apply()
     }
 
     fun togglePlay() {

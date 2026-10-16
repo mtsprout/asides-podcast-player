@@ -47,13 +47,15 @@ object Downloads {
         prefs.all.mapNotNull { (k, v) -> k.toLongOrNull()?.let { id -> (v as? Long)?.let { id to it } } }.toMap().toMutableMap()
 
     @Synchronized
-    fun start(episode: Episode) {
+    fun start(episode: Episode, wifiOnly: Boolean = false) {
         if (localFile(episode.id) != null || prefs.contains(episode.id.toString())) return
         partFile(episode.id).delete()
         val request = DownloadManager.Request(Uri.parse(episode.audioUrl))
             .setTitle(episode.title)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
             .setDestinationInExternalFilesDir(app, "downloads", "ep${episode.id}.part")
+            // Waits for Wi-Fi rather than using mobile data (automatic downloads only).
+            .apply { if (wifiOnly) setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI) }
         val dmId = try {
             manager.enqueue(request)
         } catch (e: IllegalArgumentException) {
