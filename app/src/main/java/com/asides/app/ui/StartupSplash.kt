@@ -105,4 +105,4 @@ fun StartupSplash(version: String) {
 // The parentheses slide for 1300 ms (res/animator/paren_*_in.xml); the text takes the same time.
 private const val ARRIVAL_MS = 1300
 private const val LOGO_DELAY_MS = 300L
-private const val HOLD_MS = 3200L
+private const val HOLD_MS = 2900L
