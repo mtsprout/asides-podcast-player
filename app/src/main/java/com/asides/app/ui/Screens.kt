@@ -700,7 +700,7 @@ fun PreviewScreen(repo: Repository, feedUrl: String, title: String, artworkUrl: 
                 item {
                     Text(
                         "LATEST EPISODES", style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold, fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold, fontSize = 20.sp,
                         modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
                     )
                     HorizontalDivider()
