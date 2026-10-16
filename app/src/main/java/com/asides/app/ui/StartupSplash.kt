@@ -64,4 +64,4 @@ fun StartupSplash(version: String) {
     }
 }
 
-private const val HOLD_MS = 2660L
+private const val HOLD_MS = 3660L

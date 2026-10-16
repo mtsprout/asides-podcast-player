@@ -76,7 +76,7 @@ import com.asides.app.ui.TranscriptScreen
 
 class MainActivity : ComponentActivity() {
     private companion object {
-        const val SYSTEM_SPLASH_MS = 800L
+        const val SYSTEM_SPLASH_MS = 1800L
     }
 
     /** A screen to open, set by tapping a notification; consumed once the navigation graph is up. */
