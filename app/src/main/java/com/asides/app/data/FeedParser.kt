@@ -57,9 +57,12 @@ object FeedParser {
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> {
-                    // The parser isn't namespace-aware, so names carry their prefix ("itunes:image").
-                    val raw = p.name
-                    when (raw.substringAfter(':')) {
+                    // Xml.newPullParser() is namespace-aware: the name has no prefix ("image" for both
+                    // <image> and <itunes:image>), so the namespace tells them apart.
+                    val ns = p.namespace.orEmpty()
+                    val plain = ns.isEmpty()
+                    val itunes = ns.contains("itunes.com")
+                    when (p.name) {
                         "category" -> if (!inItem) {
                             // Subcategories are nested inside their top-level category; only that one is wanted.
                             if (categoryDepth == 0) p.getAttributeValue(null, "text")?.trim()?.takeIf { it.isNotEmpty() }?.let { categories += it }
@@ -69,34 +72,34 @@ object FeedParser {
                             inItem = true; title = ""; pub = 0L; audio = null; duration = 0L
                             itemDesc = ""; itemEncoded = ""; itemSummary = ""; itemGuid = null
                         }
-                        "title" -> if (raw == "title") {
+                        "title" -> if (plain) {
                             val t = p.nextText().trim()
                             if (inItem) title = t else if (!inImage && feedTitle.isEmpty()) feedTitle = t
                         }
-                        "description" -> if (raw == "description") {
+                        "description" -> if (plain) {
                             if (inItem) itemDesc = p.nextText() else if (!inImage) description = p.nextText()
                         }
-                        "summary" -> if (raw == "itunes:summary") {
+                        "summary" -> if (itunes) {
                             if (inItem) itemSummary = p.nextText() else summary = p.nextText()
                         }
-                        "encoded" -> if (inItem && raw == "content:encoded") itemEncoded = p.nextText()
-                        "guid" -> if (inItem && raw == "guid") itemGuid = p.nextText().trim().ifEmpty { null }
+                        "encoded" -> if (inItem && ns.contains("purl.org/rss/1.0/modules/content")) itemEncoded = p.nextText()
+                        "guid" -> if (inItem && plain) itemGuid = p.nextText().trim().ifEmpty { null }
                         // Only the plain-text forms: <atom:author> has child elements and nextText() would throw on it.
-                        "author" -> if (!inItem && author.isEmpty() && (raw == "itunes:author" || raw == "author")) author = p.nextText().trim()
+                        "author" -> if (!inItem && author.isEmpty() && (plain || itunes)) author = p.nextText().trim()
                         "pubDate" -> if (inItem) pub = parseDate(p.nextText())
                         "enclosure" -> if (inItem) audio = p.getAttributeValue(null, "url")
                         "duration" -> if (inItem) duration = parseDuration(p.nextText())
                         "image" -> if (!inItem) {
-                            if (raw == "image") inImage = true
+                            if (plain) inImage = true
                             // <itunes:image href="..."/> is preferred over <image><url>...</url></image>.
                             p.getAttributeValue(null, "href")?.let { artwork = it }
                         }
-                        "url" -> if (!inItem && artwork == null) artwork = p.nextText().trim()
+                        "url" -> if (!inItem && artwork == null && plain) artwork = p.nextText().trim()
                     }
                 }
                 XmlPullParser.END_TAG -> when (p.name) {
-                    "category", "itunes:category" -> if (categoryDepth > 0) categoryDepth--
-                    "image" -> inImage = false
+                    "category" -> if (categoryDepth > 0) categoryDepth--
+                    "image" -> if (p.namespace.orEmpty().isEmpty()) inImage = false
                     "item" -> {
                         inItem = false
                         audio?.let {

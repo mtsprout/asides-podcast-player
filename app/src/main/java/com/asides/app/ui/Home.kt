@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -189,7 +190,8 @@ internal fun ChartRow(
     onOpenPreview: (SearchResult) -> Unit, onSeeAll: () -> Unit, onToggle: (String) -> Unit,
     suggest: Boolean = false,
 ) {
-    val chart by produceState<List<SearchResult>?>(null, genreId) {
+    var attempt by remember { mutableIntStateOf(0) }
+    val chart by produceState<List<SearchResult>?>(null, genreId, attempt) {
         // A suggestions row leaves out shows already followed, so it looks further down the chart.
         value = try { repo.topPodcasts(genreId, if (suggest) 25 else 5) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
     }
@@ -202,7 +204,10 @@ internal fun ChartRow(
         val list = if (suggest) chart?.filter { it.feedUrl !in subscribed }?.take(5) else chart
         when {
             list == null -> CircularProgressIndicator(Modifier.padding(16.dp).size(24.dp))
-            list.isEmpty() -> Text("Couldn't load this one.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            list.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Couldn't load this one.", Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { attempt++ }) { Text("Retry") }
+            }
             else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 6.dp)) {
                 items(list, key = { it.feedUrl }) { r ->
                     Box(Modifier.width(120.dp)) {

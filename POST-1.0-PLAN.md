@@ -47,8 +47,8 @@ endpoint the app already used (`toppodcasts/genre=<id>`), so there is no new dep
   titles, so this likely means a second directory. The **Podcast Index** (free, open, needs an API key)
   is acceptable to the maintainer. Cost: a key that can't be committed in the clear to a public repo,
   another third-party dependency, and a privacy note in the README.
-- **Retry per row.** A Discover row that fails to load just says it couldn't.
-- Check the new cards and bars at the Regular and Large text sizes.
+- ~~Retry per row~~: done, each Discover row has a Retry button.
+- ~~Text sizes~~: Library and player checked at 1.5x system font scale; layouts hold.
 
 ## Open questions
 
