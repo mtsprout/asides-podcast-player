@@ -818,25 +818,9 @@ private fun AnnotationItem(
         )
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-        // The timestamp, then the start of the note in the space before the buttons (one line, cut with "…").
-        Row(Modifier.weight(1f).clickable(onClick = onJump), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatTime(positionMs), fontWeight = FontWeight.Bold)
-            when {
-                transcript == null -> Text(
-                    "Transcribing…", Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
-                )
-                transcript.isBlank() -> Text(
-                    "No transcript available.", Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
-                )
-                else -> Text(
-                    transcript.trim().replace(Regex("\\s+"), " "), Modifier.weight(1f).padding(start = 12.dp),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        // Right-justified: timestamp (tap to hear it in context), then the buttons. No transcript text; it is often garbled.
+        Spacer(Modifier.weight(1f))
+        Text(formatTime(positionMs), Modifier.clickable(onClick = onJump).padding(horizontal = 12.dp, vertical = 8.dp), fontWeight = FontWeight.Bold)
         // Dimmed and inert until there is a transcript to show (disabled IconButtons dim themselves).
         IconButton(modifier = Modifier.size(36.dp), enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
         IconButton(modifier = Modifier.size(36.dp), enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
