@@ -107,11 +107,11 @@ some earbuds add for about a second.
 
 ## Download
 
-**Google Play.** Asides is on Google Play, but only as a closed test for now: you have to sign up as a
-tester before the Play Store will show it to you. Join through the
-[tester sign-up link](https://play.google.com/apps/internaltest/4701560302876094102), or
-[open an issue](https://github.com/mtsprout/asides-podcast-player/issues) and ask to be added. Play
-versions can lag a little behind the releases here.
+**Google Play.** Asides is on Google Play, but only as a test for now: the Play Store shows it only to
+people on the tester list. To be added, [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
+and ask. Once you're on the list, use the
+[tester link](https://play.google.com/apps/internaltest/4701560302876094102) to opt in and install it
+(the link won't work before you're added). Play versions can lag a little behind the releases here.
 
 **Or sideload it.** Grab the newest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases)
 (the one at the top; betas are marked *Pre-release*) and install it yourself.
