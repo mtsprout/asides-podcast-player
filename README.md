@@ -45,6 +45,8 @@ screen off, so it fits walks, drives and chores.
   chip and notification stay), and a Bluetooth play button wakes Asides even if Android stopped it. An
   optional Settings switch, *Resume when Bluetooth audio connects*, starts your last episode when your
   car or earbuds connect.
+- **Android Auto.** Asides shows up on the car's head unit with its playback controls. Tested on a 2023
+  Toyota RAV4.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
   the start of the episode and » to skip to the next one (the same five controls are on the
   lock-screen card and notification), remaining
