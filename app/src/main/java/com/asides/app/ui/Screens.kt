@@ -817,7 +817,7 @@ private fun AnnotationItem(
             },
         )
     }
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 0.dp), verticalAlignment = Alignment.CenterVertically) {
         // The timestamp, then the start of the note in the space before the buttons (one line, cut with "…").
         Row(Modifier.weight(1f).clickable(onClick = onJump), verticalAlignment = Alignment.CenterVertically) {
             Text(formatTime(positionMs), fontWeight = FontWeight.Bold)
@@ -838,9 +838,9 @@ private fun AnnotationItem(
             }
         }
         // Dimmed and inert until there is a transcript to show (disabled IconButtons dim themselves).
-        IconButton(enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
-        IconButton(enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
-        IconButton(onClick = { confirming = true }) { Icon(Icons.Default.Delete, "Delete aside") }
+        IconButton(modifier = Modifier.size(36.dp), enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
+        IconButton(modifier = Modifier.size(36.dp), enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
+        IconButton(modifier = Modifier.size(36.dp), onClick = { confirming = true }) { Icon(Icons.Default.Delete, "Delete aside") }
     }
     HorizontalDivider()
 }
@@ -939,17 +939,17 @@ fun AllAnnotationsScreen(
         }
         byPodcast.forEach { (podcast, podcastRows) ->
             item(key = "p-$podcast") {
-                Row(Modifier.padding(top = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Artwork(podcastRows.first().podcastArtworkUrl, 40.dp)
+                Row(Modifier.padding(top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Artwork(podcastRows.first().podcastArtworkUrl, 32.dp)
                     Text(podcast, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 12.dp))
                 }
             }
             podcastRows.groupBy { it.episodeId }.forEach { (episodeId, epRows) ->
                 val head = epRows.first()
                 item(key = "e-$episodeId") {
-                    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenEpisode(episodeId) }) {
+                    Card(Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable { onOpenEpisode(episodeId) }) {
                         Text(
-                            head.episodeTitle, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontWeight = FontWeight.SemiBold,
+                            head.episodeTitle, Modifier.padding(horizontal = 12.dp, vertical = 5.dp), fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium,
                         )
                     }

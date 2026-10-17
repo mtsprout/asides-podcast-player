@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **1.0.8**. Everything described here works and gets daily use. It is a young app, so you may
+> Status: **1.0.9**. Everything described here works and gets daily use. It is a young app, so you may
 > still hit rough edges; please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 

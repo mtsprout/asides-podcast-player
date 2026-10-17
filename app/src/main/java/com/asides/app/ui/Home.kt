@@ -151,7 +151,7 @@ internal fun UpNextRow(repo: Repository, podcasts: List<Podcast>, player: Player
     }
 }
 
-/** The newest aside, trimmed to a few words. Tap it to hear it in context. */
+/** The newest aside: podcast, episode and date (the transcript is too often garbled to show). Tap it to hear it in context. */
 @Composable
 internal fun RecentAsides(repo: Repository, player: PlayerConnection, onOpenEpisode: (Long) -> Unit, onOpenAsides: () -> Unit) {
     val recent by remember { repo.recentAsides(1) }.collectAsState(emptyList())
@@ -170,9 +170,9 @@ internal fun RecentAsides(repo: Repository, player: PlayerConnection, onOpenEpis
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(Discover.snippet(r.transcript), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.episodeTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            "${r.podcastTitle} · ${formatTime(r.positionMs)}", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            "${r.podcastTitle} · ${formatDate(r.createdAt)}", maxLines = 1, overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
