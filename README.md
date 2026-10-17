@@ -107,9 +107,12 @@ some earbuds add for about a second.
 
 ## Download
 
-Grab the newest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases)
-(the one at the top; betas are marked *Pre-release*) and install it yourself ("sideloading").
-Asides is not on the Play Store.
+**Google Play.** Asides is on Google Play, but only as a closed test for now: you have to sign up as a
+tester before the Play Store will show it to you. To be added, [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
+and ask. Play versions can lag a little behind the releases here.
+
+**Or sideload it.** Grab the newest APK from the [Releases page](https://github.com/mtsprout/asides-podcast-player/releases)
+(the one at the top; betas are marked *Pre-release*) and install it yourself.
 
 1. On your phone, download `Asides-<version>.apk` from the release.
 2. Open the file. Android will ask to let your browser (or Files app) install apps; allow it for
