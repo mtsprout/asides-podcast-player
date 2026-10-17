@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.ui.text.font.FontWeight
+import com.asides.app.data.Chapter
+import com.asides.app.data.Chapters
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -104,6 +110,14 @@ fun EpisodeScreen(
         value = episode?.let { repo.nextEpisode(it.id, newestFirst) }
     }
 
+    // Chapters come from a file the feed links to; most episodes have none, and a failed load just means none.
+    val chapters by produceState(emptyList<Chapter>(), episode?.id, podcast?.feedUrl) {
+        val e = episode
+        val feedUrl = podcast?.feedUrl
+        value = if (e == null || feedUrl == null) emptyList()
+        else try { repo.episodeChapters(feedUrl, e.audioUrl) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (ex: Exception) { emptyList() }
+    }
+
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Playing") })
@@ -119,7 +133,7 @@ fun EpisodeScreen(
         val e = episode ?: return@Column
         when (tab) {
             0 -> PlayingTab(
-                e, podcast, nextEpisode, player,
+                e, podcast, nextEpisode, player, chapters,
                 onNext = {
                     // In a review, "next" means "back to where I was".
                     if (Review.info != null) { player.returnFromReview(); return@PlayingTab }
@@ -155,6 +169,7 @@ private fun PlayingTab(
     podcast: Podcast?,
     nextEpisode: Episode?,
     player: PlayerConnection,
+    chapters: List<Chapter>,
     onNext: () -> Unit,
     onTogglePlayed: () -> Unit,
 ) {
@@ -167,6 +182,8 @@ private fun PlayingTab(
     var showSpeeds by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showChapters by remember { mutableStateOf(false) }
+    val chapterIndex = Chapters.indexAt(chapters, position)
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -178,6 +195,10 @@ private fun PlayingTab(
         Text(
             podcast?.title.orEmpty(), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+        )
+        if (chapterIndex >= 0) Text(
+            chapters[chapterIndex].title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary,
         )
         Slider(
             value = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f,
@@ -217,6 +238,7 @@ private fun PlayingTab(
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 ActionItem(Icons.Default.Speed, "%.1f×".format(player.speed)) { showSpeeds = true }
                 ActionItem(Icons.Default.Bedtime, player.sleepLabel ?: "Sleep") { showSleep = true }
+                if (chapters.isNotEmpty()) ActionItem(Icons.Default.Bookmarks, "Chapters") { showChapters = true }
                 ActionItem(Icons.Default.Share, "Share") {
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
@@ -261,6 +283,11 @@ private fun PlayingTab(
         )
     }
 
+    if (showChapters) ChapterPicker(
+        chapters, chapterIndex, enabled = active,
+        onPick = { player.seekTo(it.startMs); showChapters = false },
+        onDismiss = { showChapters = false },
+    )
     if (showSpeeds) SpeedPicker(player.speed, onPick = { player.changeSpeed(it); showSpeeds = false }, onDismiss = { showSpeeds = false })
     if (showSleep) SleepPicker(
         active = player.sleepLabel != null,
@@ -306,6 +333,40 @@ private fun DetailsTab(repo: Repository, e: Episode, podcast: Podcast?) {
             else -> Text(notes.orEmpty(), style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+/** The episode's chapters with their start times; the current one is marked and scrolled into view. */
+@Composable
+private fun ChapterPicker(chapters: List<Chapter>, current: Int, enabled: Boolean, onPick: (Chapter) -> Unit, onDismiss: () -> Unit) {
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Chapters") },
+        text = {
+            Column {
+                if (!enabled) Text("Start the episode to jump between chapters.", style = MaterialTheme.typography.bodySmall)
+                LazyColumn(state = state, modifier = Modifier.heightIn(max = 360.dp)) {
+                    itemsIndexed(chapters) { i, c ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable(enabled = enabled) { onPick(c) }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                formatTime(c.startMs), Modifier.width(64.dp), style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                c.title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (i == current) FontWeight.Bold else FontWeight.Normal,
+                                color = if (i == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }
 
 /** A scrolling list of speeds from 0.5× to 2.0×; the current one is selected and scrolled into view. */

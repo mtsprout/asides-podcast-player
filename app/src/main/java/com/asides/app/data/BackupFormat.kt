@@ -47,6 +47,24 @@ data class BackupAside(
     val audio: String?,
 )
 
+/** A podcast's own settings (speed, skip intro, auto-download); only podcasts that have some are listed. */
+data class BackupPodcastSettings(
+    val feedUrl: String,
+    val speed: Float?,
+    val skipIntroSec: Int,
+    val autoDownload: Boolean,
+)
+
+/** One queued episode, with enough about it to recreate it if this phone doesn't have it yet. */
+data class BackupQueued(
+    val feedUrl: String,
+    val guid: String?,
+    val audioUrl: String,
+    val title: String,
+    val pubDate: Long,
+    val durationMs: Long,
+)
+
 data class BackupData(
     val appVersion: String,
     val exportedAt: Long,
@@ -54,6 +72,10 @@ data class BackupData(
     val podcasts: List<BackupPodcast>,
     val episodes: List<BackupEpisode>,
     val asides: List<BackupAside>,
+    /** Added after format 1 shipped; older files simply lack them, and older apps ignore them. */
+    val podcastSettings: List<BackupPodcastSettings> = emptyList(),
+    /** The play queue, first entry plays next. */
+    val queue: List<BackupQueued> = emptyList(),
 )
 
 /** Raised for a file that isn't a usable Asides backup; the message is safe to show to the user. */
@@ -92,6 +114,14 @@ object BackupFormat {
                 .put("createdAt", it.createdAt).put("transcript", it.transcript ?: JSONObject.NULL)
                 .put("audio", it.audio ?: JSONObject.NULL)
         }))
+        put("podcastSettings", JSONArray(data.podcastSettings.map {
+            JSONObject().put("feedUrl", it.feedUrl).put("speed", it.speed?.toDouble() ?: JSONObject.NULL)
+                .put("skipIntroSec", it.skipIntroSec).put("autoDownload", it.autoDownload)
+        }))
+        put("queue", JSONArray(data.queue.map {
+            JSONObject().put("feedUrl", it.feedUrl).put("guid", it.guid ?: JSONObject.NULL).put("audioUrl", it.audioUrl)
+                .put("title", it.title).put("pubDate", it.pubDate).put("durationMs", it.durationMs)
+        }))
     }.toString(2)
 
     fun decode(json: String): BackupData {
@@ -128,6 +158,14 @@ object BackupFormat {
                 asides = root.getJSONArray("asides").objects().map {
                     BackupAside(it.getString("feedUrl"), it.optStringOrNull("episodeGuid"), it.getString("episodeAudioUrl"),
                         it.optLong("positionMs"), it.optLong("createdAt"), it.optStringOrNull("transcript"), it.optStringOrNull("audio"))
+                },
+                podcastSettings = root.optJSONArray("podcastSettings")?.objects().orEmpty().map {
+                    BackupPodcastSettings(it.getString("feedUrl"), if (it.isNull("speed")) null else it.getDouble("speed").toFloat(),
+                        it.optInt("skipIntroSec"), it.optBoolean("autoDownload"))
+                },
+                queue = root.optJSONArray("queue")?.objects().orEmpty().map {
+                    BackupQueued(it.getString("feedUrl"), it.optStringOrNull("guid"), it.getString("audioUrl"), it.getString("title"),
+                        it.optLong("pubDate"), it.optLong("durationMs"))
                 },
             )
         } catch (e: JSONException) {

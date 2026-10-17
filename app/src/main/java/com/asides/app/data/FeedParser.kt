@@ -15,6 +15,8 @@ data class ParsedEpisode(
     val guid: String? = null,
     /** Raw show notes, usually HTML; convert with [FeedParser.plainText] when displaying. */
     val descriptionHtml: String = "",
+    /** Link to a Podcasting 2.0 chapters file (`<podcast:chapters url=...>`), when the episode has one. */
+    val chaptersUrl: String? = null,
 )
 
 data class ParsedFeed(
@@ -50,6 +52,7 @@ object FeedParser {
         var duration = 0L
         var itemDesc = ""
         var itemGuid: String? = null
+        var itemChapters: String? = null
         var itemEncoded = ""
         var itemSummary = ""
 
@@ -70,7 +73,7 @@ object FeedParser {
                         }
                         "item" -> {
                             inItem = true; title = ""; pub = 0L; audio = null; duration = 0L
-                            itemDesc = ""; itemEncoded = ""; itemSummary = ""; itemGuid = null
+                            itemDesc = ""; itemEncoded = ""; itemSummary = ""; itemGuid = null; itemChapters = null
                         }
                         "title" -> if (plain) {
                             val t = p.nextText().trim()
@@ -88,6 +91,7 @@ object FeedParser {
                         "author" -> if (!inItem && author.isEmpty() && (plain || itunes)) author = p.nextText().trim()
                         "pubDate" -> if (inItem) pub = parseDate(p.nextText())
                         "enclosure" -> if (inItem) audio = p.getAttributeValue(null, "url")
+                        "chapters" -> if (inItem && ns.contains("podcastindex.org")) itemChapters = p.getAttributeValue(null, "url")?.trim()?.ifEmpty { null }
                         "duration" -> if (inItem) duration = parseDuration(p.nextText())
                         "image" -> if (!inItem) {
                             if (plain) inImage = true
@@ -106,6 +110,7 @@ object FeedParser {
                             episodes += ParsedEpisode(
                                 title, pub, it, duration, itemGuid,
                                 itemEncoded.ifBlank { itemDesc }.ifBlank { itemSummary },
+                                itemChapters,
                             )
                         }
                     }

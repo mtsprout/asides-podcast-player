@@ -6,6 +6,8 @@ import com.asides.app.data.BackupData
 import com.asides.app.data.BackupEpisode
 import com.asides.app.data.BackupException
 import com.asides.app.data.BackupFormat
+import com.asides.app.data.BackupPodcastSettings
+import com.asides.app.data.BackupQueued
 import com.asides.app.data.BackupMatch
 import com.asides.app.data.BackupPodcast
 import com.asides.app.data.BackupSettings
@@ -35,7 +37,22 @@ class BackupFormatTest {
             BackupAside("https://a/feed", "g1", "https://a/1.mp3", 5_000, 1_700_000_001_000, "hello \"world\"\nline two", "audio/1.wav"),
             BackupAside("https://a/feed", null, "https://a/1.mp3", 9_000, 1_700_000_002_000, null, null),
         ),
+        podcastSettings = listOf(
+            BackupPodcastSettings("https://a/feed", 1.5f, 30, true),
+            BackupPodcastSettings("https://b/feed", null, 0, false),
+        ),
+        queue = listOf(
+            BackupQueued("https://b/feed", null, "https://b/9.mp3", "Nine", 2000, 0),
+            BackupQueued("https://a/feed", "g1", "https://a/1.mp3", "Day 1", 1000, 60_000),
+        ),
     )
+
+    @Test fun anOlderBackupWithoutSettingsOrQueueStillReads() {
+        val old = JSONObject(BackupFormat.encode(sample())).apply { remove("podcastSettings"); remove("queue") }.toString()
+        val read = BackupFormat.decode(old)
+        assertEquals(emptyList<BackupPodcastSettings>(), read.podcastSettings)
+        assertEquals(emptyList<BackupQueued>(), read.queue)
+    }
 
     @Test fun roundTripKeepsEverything() {
         assertEquals(sample(), BackupFormat.decode(BackupFormat.encode(sample())))

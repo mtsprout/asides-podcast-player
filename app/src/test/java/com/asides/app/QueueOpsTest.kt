@@ -14,6 +14,10 @@ class QueueOpsTest {
         assertEquals(listOf(2L, 1L), QueueOps.addToTop(listOf(1, 2), listOf(2, 2)))
     }
 
+    @Test fun appendGoesToTheEndSkippingRepeats() {
+        assertEquals(listOf(1L, 2L, 3L, 4L), QueueOps.append(listOf(1L, 2L), listOf(2L, 3L, 3L, 4L)))
+    }
+
     @Test fun moveShiftsOneEntry() {
         val q = listOf(1L, 2L, 3L, 4L)
         assertEquals(listOf(1L, 3L, 2L, 4L), QueueOps.move(q, 2, 1))

@@ -46,7 +46,8 @@ data class RestoreSummary(
 /** A downloaded feed; [feed] is null when the server said nothing had changed. */
 private class Fetched(val feed: ParsedFeed?, val etag: String?, val lastModified: String?)
 
-class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File, val genreStore: GenreStore? = null, val queueStore: QueueStore? = null) {
+class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDir: File, val genreStore: GenreStore? = null, val queueStore: QueueStore? = null,
+    val podcastSettings: PodcastSettingsStore? = null) {
 
     private companion object {
         const val TAG = "Asides"
@@ -188,6 +189,23 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     suspend fun episodeDescription(feedUrl: String, audioUrl: String): String? {
         val html = previewFeed(feedUrl).episodes.firstOrNull { it.audioUrl == audioUrl }?.descriptionHtml
         return html?.let { FeedParser.plainText(it) }?.ifBlank { null }
+    }
+
+    private val chapterCache = HashMap<String, List<Chapter>>()
+
+    /** The episode's chapters from its feed's chapters file; empty if it has none or they can't be loaded. */
+    suspend fun episodeChapters(feedUrl: String, audioUrl: String): List<Chapter> {
+        val url = previewFeed(feedUrl).episodes.firstOrNull { it.audioUrl == audioUrl }?.chaptersUrl ?: return emptyList()
+        chapterCache[url]?.let { return it }
+        return withContext(Dispatchers.IO) {
+            try {
+                http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                    if (!resp.isSuccessful) emptyList() else Chapters.parse(resp.body!!.string())
+                }
+            } catch (e: java.io.IOException) {
+                emptyList()
+            }.also { if (it.isNotEmpty()) chapterCache[url] = it }
+        }
     }
 
     /** Subscribes to a feed (or refreshes it if already subscribed). Returns the podcast id. */
@@ -377,6 +395,15 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
                         it.durationMs, it.positionMs, it.played)
                 },
                 asides = asides.map { it.second },
+                podcastSettings = podcasts.mapNotNull { p ->
+                    val s = podcastSettings?.get(p.id)?.takeIf { it != PodcastSettings() } ?: return@mapNotNull null
+                    BackupPodcastSettings(p.feedUrl, s.speed, s.skipIntroSec, s.autoDownload)
+                },
+                queue = queueStore?.ids?.value.orEmpty().mapNotNull { id ->
+                    val ep = db.episodes().episode(id) ?: return@mapNotNull null
+                    val feed = podcastById[ep.podcastId]?.feedUrl ?: return@mapNotNull null
+                    BackupQueued(feed, ep.guid, ep.audioUrl, ep.title, ep.pubDate, ep.durationMs)
+                },
             )
             ZipOutputStream(output.buffered()).use { zip ->
                 zip.putNextEntry(ZipEntry("backup.json"))
@@ -465,6 +492,18 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             if (e.played && !current.played) episodeDao.setPlayed(id, true)
             if (!e.played && current.positionMs == 0L && e.positionMs > 0) episodeDao.savePosition(id, e.positionMs, e.durationMs)
         }
+
+        // Per-podcast settings fill in only where this phone has none of its own.
+        for (s in data.podcastSettings) {
+            val id = podcastIds[s.feedUrl] ?: continue
+            val store = podcastSettings ?: break
+            if (store.get(id) != PodcastSettings()) continue
+            store.setSpeed(id, s.speed)
+            store.setSkipIntro(id, s.skipIntroSec)
+            store.setAutoDownload(id, s.autoDownload)
+        }
+        // Queued episodes go after whatever is already queued here, in their saved order.
+        queueStore?.append(data.queue.mapNotNull { episodeId(it.feedUrl, it.guid, it.audioUrl, it.title, it.pubDate, it.durationMs) })
 
         var restored = 0
         var alreadyHere = 0

@@ -13,10 +13,13 @@ object QueueOps {
     }
 
     /** Moves the entry at [from] to position [to]; out-of-range requests leave the queue alone. */
-    fun move(queue: List<Long>, from: Int, to: Int): List<Long> {
+    fun <T> move(queue: List<T>, from: Int, to: Int): List<T> {
         if (from !in queue.indices || to !in queue.indices || from == to) return queue
         return queue.toMutableList().apply { add(to, removeAt(from)) }
     }
+
+    /** [added] go to the end, skipping any already queued. */
+    fun append(queue: List<Long>, added: List<Long>): List<Long> = queue + added.distinct().filter { it !in queue }
 
     fun encode(queue: List<Long>) = queue.joinToString(",")
 
@@ -41,6 +44,7 @@ class QueueStore(private val prefs: SharedPreferences) {
     }
 
     fun addToTop(added: List<Long>) = update { QueueOps.addToTop(it, added) }
+    fun append(added: List<Long>) = update { QueueOps.append(it, added) }
     fun remove(id: Long) = update { q -> q.filter { it != id } }
     fun move(from: Int, to: Int) = update { QueueOps.move(it, from, to) }
     fun clear() = update { emptyList() }

@@ -29,9 +29,9 @@ class AsidesApp : Application() {
         super.onCreate()
         val dir = File(filesDir, "annotations").apply { mkdirs() }
         transcriber = Transcriber(this)
-        repo = Repository(AppDb.create(this), OkHttpClient(), dir, GenreStore(getSharedPreferences("genres", MODE_PRIVATE)),
-            QueueStore(getSharedPreferences("queue", MODE_PRIVATE)))
         podcastSettings = PodcastSettingsStore(getSharedPreferences("podcast_settings", MODE_PRIVATE))
+        repo = Repository(AppDb.create(this), OkHttpClient(), dir, GenreStore(getSharedPreferences("genres", MODE_PRIVATE)),
+            QueueStore(getSharedPreferences("queue", MODE_PRIVATE)), podcastSettings)
         AppSettings.init(this)
         Downloads.init(this)
         repo.saveAudio = { AppSettings.saveAudio }
