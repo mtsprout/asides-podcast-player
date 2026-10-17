@@ -818,8 +818,8 @@ private fun AnnotationItem(
         )
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-        // Right-justified: timestamp (tap to hear it in context), then the buttons. No transcript text; it is often garbled.
-        Spacer(Modifier.weight(1f))
+        // Left-justified and indented: timestamp (tap to hear it in context), then the buttons. No transcript text; it is often garbled.
+        Spacer(Modifier.width(16.dp))
         Text(formatTime(positionMs), Modifier.clickable(onClick = onJump).padding(horizontal = 12.dp, vertical = 8.dp), fontWeight = FontWeight.Bold)
         // Dimmed and inert until there is a transcript to show (disabled IconButtons dim themselves).
         IconButton(modifier = Modifier.size(36.dp), enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
