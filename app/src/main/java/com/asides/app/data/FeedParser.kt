@@ -91,7 +91,7 @@ object FeedParser {
                         "author" -> if (!inItem && author.isEmpty() && (plain || itunes)) author = p.nextText().trim()
                         "pubDate" -> if (inItem) pub = parseDate(p.nextText())
                         "enclosure" -> if (inItem) audio = p.getAttributeValue(null, "url")
-                        "chapters" -> if (inItem && ns.contains("podcastindex.org")) itemChapters = p.getAttributeValue(null, "url")?.trim()?.ifEmpty { null }
+                        "chapters" -> if (inItem && ns.contains("podcastindex", ignoreCase = true)) itemChapters = p.getAttributeValue(null, "url")?.trim()?.ifEmpty { null }
                         "duration" -> if (inItem) duration = parseDuration(p.nextText())
                         "image" -> if (!inItem) {
                             if (plain) inImage = true

@@ -7,7 +7,7 @@ records it, pins it to that exact moment in the episode, and transcribes it. Lat
 your asides, or jump straight back to the moment you made them. It works with the
 screen off, so it fits walks, drives and chores.
 
-> Status: **1.0.9**. Everything described here works and gets daily use. It is a young app, so you may
+> Status: **1.0.10**. Everything described here works and gets daily use. It is a young app, so you may
 > still hit rough edges; please [open an issue](https://github.com/mtsprout/asides-podcast-player/issues)
 > if you do. Android only.
 
@@ -45,6 +45,8 @@ screen off, so it fits walks, drives and chores.
   chip and notification stay), and a Bluetooth play button wakes Asides even if Android stopped it. An
   optional Settings switch, *Resume when Bluetooth audio connects*, starts your last episode when your
   car or earbuds connect.
+- **Chapters.** When a podcast publishes a chapters file (the Podcasting 2.0 standard), the player shows the
+  current chapter and a Chapters button to jump between them. Chapters stored inside the audio file are not read.
 - **Android Auto.** Asides shows up on the car's head unit with its playback controls. Tested on a 2023
   Toyota RAV4.
 - **A familiar player.** Playing / Details / Asides tabs, 10 s back and 30 s forward, « to jump to
@@ -72,11 +74,11 @@ screen off, so it fits walks, drives and chores.
   newest three per refresh).
 - **Play queue.** Select episodes on a podcast's page and tap the queue icon: they go to the top of the
   queue and play ahead of the usual next-unplayed-episode rule, across podcasts. The queue icon at the
-  top left of the Library opens it (reorder with the arrows, tap to play now). Podcasts you don't follow
+  top left of the Library opens it (drag the handle to reorder, tap to play now). Podcasts you don't follow
   have an add-to-queue button on their preview page; the episode is saved quietly, with the podcast kept
   out of your Library.
 - **Back up and restore.** In Settings, *Back up…* saves your asides (transcripts, plus any
-  recordings that were kept), your subscriptions and your played marks to one file you can keep anywhere: Drive,
+  recordings that were kept), your subscriptions, played marks, play queue and per-podcast settings to one file you can keep anywhere: Drive,
   Downloads, an email to yourself. *Restore…* on this or another phone adds only what's missing, so
   it's safe to do twice. This is the way to keep your asides if you uninstall or change phones.
 - **Delete with care.** The trash icon on an aside lets you delete just the recording (if it was
@@ -165,8 +167,7 @@ go over the network:
 ## Known limitations
 
 - The Top podcasts list uses an older, unofficial Apple endpoint that could stop working.
-- Episodes stream unless you download them. Downloads are manual; there is no auto-download of new
-  episodes yet.
+- Episodes stream unless you download them. Downloads are manual unless you turn on Wi-Fi auto-download for a podcast.
 - *Resume when Bluetooth audio connects* applies to every Bluetooth audio device, and works only if
   Android lets an app start playing from the background; that can differ by phone.
 - **Background refresh timing is up to Android.** "About every 4 hours" is a target, not a promise,
@@ -174,7 +175,6 @@ go over the network:
   haven't opened in a while. Opening the app or pulling down to refresh always works.
 - Notifications need the notification permission (Android 13+), which Asides asks for on first
   launch.
-- There is no queue yet: automatic play simply follows the podcast's list order.
 - Transcripts depend on your phone's recognizer and are not always accurate.
 
 See [ROADMAP.md](ROADMAP.md) for what's planned.
