@@ -820,11 +820,11 @@ private fun AnnotationItem(
     Row(Modifier.fillMaxWidth().padding(vertical = 0.dp), verticalAlignment = Alignment.CenterVertically) {
         // Left-justified and indented: timestamp (tap to hear it in context), then the buttons. No transcript text; it is often garbled.
         Spacer(Modifier.width(16.dp))
-        Text(formatTime(positionMs), Modifier.clickable(onClick = onJump).padding(horizontal = 12.dp, vertical = 8.dp), fontWeight = FontWeight.Bold)
+        Text(formatTime(positionMs), Modifier.clickable(onClick = onJump).padding(horizontal = 12.dp, vertical = 4.dp), fontWeight = FontWeight.Bold)
         // Dimmed and inert until there is a transcript to show (disabled IconButtons dim themselves).
-        IconButton(modifier = Modifier.size(36.dp), enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript") }
-        IconButton(modifier = Modifier.size(36.dp), enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
-        IconButton(modifier = Modifier.size(36.dp), onClick = { confirming = true }) { Icon(Icons.Default.Delete, "Delete aside") }
+        IconButton(modifier = Modifier.size(32.dp), enabled = !transcript.isNullOrBlank(), onClick = onOpenTranscript) { Icon(Icons.Default.Edit, "Show transcript", Modifier.size(20.dp)) }
+        IconButton(modifier = Modifier.size(32.dp), enabled = hasAudio, onClick = { player.playClip(audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside", Modifier.size(20.dp)) }
+        IconButton(modifier = Modifier.size(32.dp), onClick = { confirming = true }) { Icon(Icons.Default.Delete, "Delete aside", Modifier.size(20.dp)) }
     }
     HorizontalDivider()
 }
@@ -848,7 +848,7 @@ fun TranscriptScreen(repo: Repository, annotationId: Long, player: PlayerConnect
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            IconButton(enabled = note.audioPath.isNotEmpty(), onClick = { player.playClip(note.audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside") }
+            IconButton(enabled = note.audioPath.isNotEmpty(), onClick = { player.playClip(note.audioPath) }) { Icon(Icons.Default.VolumeUp, "Play aside", Modifier.size(20.dp)) }
             IconButton(
                 enabled = !editing && rows.any { it.id == annotationId },
                 onClick = {
