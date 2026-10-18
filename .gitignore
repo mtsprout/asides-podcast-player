@@ -12,3 +12,4 @@ gradle/wrapper/dists
 *.jks
 *.keystore
 dist/
+github-fine-grained-access.txt
