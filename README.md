@@ -159,6 +159,9 @@ saved aside with `adb shell am start -n com.asides.app/.MainActivity --es retran
 
 ## Privacy
 
+New here? The [FAQ](FAQ.md) answers the common questions, including why Asides needs the
+microphone and where transcription happens.
+
 There are no accounts and no analytics, and everything you create stays on your phone. What does
 go over the network:
 
