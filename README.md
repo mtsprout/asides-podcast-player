@@ -43,8 +43,8 @@ screen off, so it fits walks, drives and chores.
   finish it or mark it played.
 - **Picks up where you left off, in the car too.** Playback survives swiping the app away (the status-bar
   chip and notification stay), and a Bluetooth play button wakes Asides even if Android stopped it. An
-  optional Settings switch, *Resume when Bluetooth audio connects*, starts your last episode when your
-  car or earbuds connect.
+  optional Settings switch, *Resume when connecting to a car*, starts your last episode when your
+  car connects (headsets and earbuds are ignored).
 - **Chapters.** When a podcast publishes a chapters file (the Podcasting 2.0 standard), the player shows the
   current chapter and a Chapters button to jump between them. Chapters stored inside the audio file are not read.
 - **Android Auto.** Asides shows up on the car's head unit with its playback controls. Tested on a 2023
@@ -176,7 +176,7 @@ go over the network:
 
 - The Top podcasts list uses an older, unofficial Apple endpoint that could stop working.
 - Episodes stream unless you download them. Downloads are manual unless you turn on Wi-Fi auto-download for a podcast.
-- *Resume when Bluetooth audio connects* applies to every Bluetooth audio device, and works only if
+- *Resume when connecting to a car* applies only to devices that identify as car audio, and works only if
   Android lets an app start playing from the background; that can differ by phone.
 - **Background refresh timing is up to Android.** "About every 4 hours" is a target, not a promise,
   and some phones (Samsung's battery saver, for example) postpone background work for apps you

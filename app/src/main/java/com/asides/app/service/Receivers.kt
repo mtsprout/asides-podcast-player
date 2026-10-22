@@ -1,10 +1,13 @@
 package com.asides.app.service
 
 import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothClass
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -20,13 +23,14 @@ class DownloadCompleteReceiver : BroadcastReceiver() {
 }
 
 /**
- * When Bluetooth audio (a car, a speaker, earbuds) connects and the user has asked for it in Settings,
- * press "play" on the playback service, which resumes the last episode where it was left.
+ * When a car's Bluetooth audio (not a headset, earbuds or speaker) connects and the user has asked for it
+ * in Settings, press "play" on the playback service, which resumes the last episode where it was left.
  */
 class BluetoothResumeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED) return
         if (intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) != BluetoothProfile.STATE_CONNECTED) return
+        if (!isCar(intent)) return
         val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         if (!prefs.getBoolean(RESUME_PREF, false)) return
         if (prefs.getLong(PlaybackService.LAST_EPISODE_PREF, -1L) < 0) return
@@ -46,6 +50,20 @@ class BluetoothResumeReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }, 1500)
+    }
+
+    /** Only a device that identifies itself as car audio counts; headsets and speakers must not auto-start. */
+    private fun isCar(intent: Intent): Boolean {
+        val device = if (Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+        } else {
+            @Suppress("DEPRECATION") intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+        }
+        return try {
+            device?.bluetoothClass?.deviceClass == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO
+        } catch (e: SecurityException) {
+            false
+        }
     }
 
     companion object {

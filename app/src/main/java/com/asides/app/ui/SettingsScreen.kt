@@ -246,7 +246,7 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
                 androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
             ) { granted -> AppSettings.chooseResumeOnBluetooth(granted) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Resume when Bluetooth audio connects", Modifier.weight(1f))
+                Text("Resume when connecting to a car", Modifier.weight(1f))
                 Switch(checked = AppSettings.resumeOnBluetooth, onCheckedChange = { on ->
                     val needsPermission = on && android.os.Build.VERSION.SDK_INT >= 31 &&
                         androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT) !=
@@ -255,9 +255,9 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
                 })
             }
             Text(
-                "When your car, a speaker or earbuds connect over Bluetooth, the episode you were last listening to " +
-                    "picks up where you left off. Android asks once for permission to see Bluetooth connections. " +
-                    "It applies to every Bluetooth audio device, and it only works if Android lets Asides start " +
+                "When your car connects over Bluetooth (headsets, earbuds and speakers are ignored), the episode you " +
+                    "were last listening to picks up where you left off. Android asks once for permission to see " +
+                    "Bluetooth connections. It relies on the car identifying itself as car audio, and it only works if Android lets Asides start " +
                     "playing from the background.",
                 style = MaterialTheme.typography.bodySmall,
             )
