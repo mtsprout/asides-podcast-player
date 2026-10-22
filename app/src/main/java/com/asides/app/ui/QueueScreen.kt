@@ -63,7 +63,9 @@ fun QueueScreen(repo: Repository, player: PlayerConnection) {
     var dragId by remember { mutableStateOf<Long?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var dragFrom by remember { mutableIntStateOf(-1) }
-    var staleOffset by remember { mutableIntStateOf(Int.MIN_VALUE) }
+    // The rows' places when the drag began: (id, top, height). Where the finger is decides the target from these.
+    var slots by remember { mutableStateOf(emptyList<Triple<Long, Int, Int>>()) }
+    var dragStart by remember { mutableStateOf(emptyList<Pair<Episode, Podcast?>>()) }
     val listState = rememberLazyListState()
     LaunchedEffect(rows) { if (dragId == null) shown = rows }
 
@@ -84,7 +86,12 @@ fun QueueScreen(repo: Repository, player: PlayerConnection) {
             itemsIndexed(shown, key = { _, r -> r.first.id }) { _, (e, p) ->
                 val dragging = dragId == e.id
                 Box(
-                    (if (dragging) Modifier.zIndex(1f).graphicsLayer { translationY = dragOffset }.alpha(0.92f)
+                    (if (dragging) Modifier.zIndex(1f).graphicsLayer {
+                        // The finger's travel, corrected for how far the row itself has since slid into a new slot.
+                        val now = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == e.id }?.offset
+                        val was = slots.firstOrNull { it.first == e.id }?.second
+                        translationY = dragOffset + if (now != null && was != null) (was - now) else 0
+                    }.alpha(0.92f)
                     else Modifier.animateItem())
                         .background(MaterialTheme.colorScheme.surface),
                 ) {
@@ -113,27 +120,22 @@ fun QueueScreen(repo: Repository, player: PlayerConnection) {
                                         onDragStart = {
                                             dragId = e.id
                                             dragOffset = 0f
-                                            staleOffset = Int.MIN_VALUE
+                                            dragStart = shown
                                             dragFrom = shown.indexOfFirst { it.first.id == e.id }
+                                            slots = listState.layoutInfo.visibleItemsInfo.map { Triple(it.key as Long, it.offset, it.size) }
                                         },
                                         onDrag = { change, amount ->
                                             change.consume()
                                             dragOffset += amount.y
-                                            val info = listState.layoutInfo.visibleItemsInfo
-                                            val cur = info.firstOrNull { it.key == e.id } ?: return@detectDragGestures
-                                            // Just after a swap the layout is out of date until it settles.
-                                            if (cur.offset == staleOffset) return@detectDragGestures
-                                            val centre = cur.offset + cur.size / 2 + dragOffset
-                                            val target = info.firstOrNull {
-                                                it.key != e.id && centre >= it.offset && centre <= it.offset + it.size
-                                            } ?: return@detectDragGestures
-                                            val from = shown.indexOfFirst { it.first.id == e.id }
-                                            val to = shown.indexOfFirst { it.first.id == target.key }
-                                            if (from < 0 || to < 0) return@detectDragGestures
-                                            shown = QueueOps.move(shown, from, to)
-                                            // Keep the row under the finger while the others slide into place.
-                                            dragOffset += cur.offset - target.offset
-                                            staleOffset = cur.offset
+                                            val mine = slots.firstOrNull { it.first == e.id } ?: return@detectDragGestures
+                                            val centre = mine.second + mine.third / 2 + dragOffset
+                                            // Which of the rows' original places the dragged row's centre is over.
+                                            val ordered = slots.sortedBy { it.second }
+                                            val over = ordered.firstOrNull { centre < it.second + it.third } ?: ordered.last()
+                                            val to = dragStart.indexOfFirst { it.first.id == over.first }
+                                            if (dragFrom < 0 || to < 0) return@detectDragGestures
+                                            val next = QueueOps.move(dragStart, dragFrom, to)
+                                            if (next != shown) shown = next
                                         },
                                         onDragEnd = {
                                             val to = shown.indexOfFirst { it.first.id == e.id }

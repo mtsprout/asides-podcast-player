@@ -316,9 +316,23 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     /** The play queue, first entry plays next. */
     val queue: StateFlow<List<Long>> = queueStore?.ids ?: MutableStateFlow(emptyList())
 
-    /** What should play after [episodeId] finishes, or null if nothing is left to hear. The queue comes first. */
+    private val _queueDriven = MutableStateFlow(false)
+
+    /** True while the episode playing came out of the queue; only then does the queue decide what's next. */
+    val queueDriven: StateFlow<Boolean> = _queueDriven
+
+    /** Called when an episode starts: [fromQueue] is whether it was waiting in the queue. */
+    fun playbackStarted(episodeId: Long) {
+        _queueDriven.value = episodeId in queue.value
+        queueStore?.remove(episodeId)
+    }
+
+    /**
+     * What should play after [episodeId] finishes, or null if nothing is left to hear. If that episode came
+     * from the queue, the rest of the queue comes first; one started from a podcast's page follows its podcast.
+     */
     suspend fun nextEpisode(episodeId: Long, newestFirst: Boolean): Episode? {
-        for (id in queue.value) {
+        if (_queueDriven.value) for (id in queue.value) {
             if (id == episodeId) continue
             db.episodes().episode(id)?.let { return it }
             queueStore?.remove(id) // its episode is gone

@@ -177,7 +177,7 @@ class PlaybackService : MediaSessionService() {
                 if (Review.info == null) mediaItem?.mediaId?.toLongOrNull()?.let {
                     getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
                     // Whatever starts playing leaves the queue: it is no longer "up next".
-                    repo.removeFromQueue(it)
+                    repo.playbackStarted(it)
                     // A podcast with its own speed plays at it; any other at the normal one.
                     val podcastId = mediaItem?.mediaMetadata?.extras?.getLong(EXTRA_PODCAST_ID, -1L) ?: -1L
                     val own = if (podcastId > 0) (application as AsidesApp).podcastSettings.get(podcastId).speed else null

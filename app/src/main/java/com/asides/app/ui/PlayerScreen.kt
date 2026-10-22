@@ -106,7 +106,8 @@ fun EpisodeScreen(
     val context = LocalContext.current
     val newestFirst = remember { context.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
     val queued by repo.queue.collectAsState()
-    val nextEpisode by produceState<Episode?>(null, episode?.id, episode?.played, queued) {
+    val queueDriven by repo.queueDriven.collectAsState()
+    val nextEpisode by produceState<Episode?>(null, episode?.id, episode?.played, queued, queueDriven) {
         value = episode?.let { repo.nextEpisode(it.id, newestFirst) }
     }
 
