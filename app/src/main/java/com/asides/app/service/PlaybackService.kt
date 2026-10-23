@@ -261,16 +261,22 @@ class PlaybackService : MediaSessionService() {
                 ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
                     val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
                     scope.launch {
-                        val repo = (application as AsidesApp).repo
-                        val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
-                        val newestFirst = getSharedPreferences("prefs", MODE_PRIVATE).getBoolean("newestFirst", false)
-                        val episode = repo.resumeEpisode(lastId, newestFirst)
-                        Log.d(TAG, "resumption: last $lastId, resuming ${episode?.id} at ${episode?.positionMs}")
-                        if (episode == null) {
-                            result.setException(UnsupportedOperationException("Nothing to resume"))
-                        } else {
-                            val item = mediaItemFor(episode, repo.podcastNow(episode.podcastId))
-                            result.set(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, (application as AsidesApp).podcastSettings.startPositionMs(episode)))
+                        // Whatever goes wrong, the future must complete, or the service never becomes foreground.
+                        try {
+                            val repo = (application as AsidesApp).repo
+                            val lastId = getSharedPreferences("prefs", MODE_PRIVATE).getLong(LAST_EPISODE_PREF, -1L)
+                            val newestFirst = getSharedPreferences("prefs", MODE_PRIVATE).getBoolean("newestFirst", false)
+                            val episode = repo.resumeEpisode(lastId, newestFirst)
+                            Log.d(TAG, "resumption: last $lastId, resuming ${episode?.id} at ${episode?.positionMs}")
+                            if (episode == null) {
+                                result.setException(UnsupportedOperationException("Nothing to resume"))
+                            } else {
+                                val item = mediaItemFor(episode, repo.podcastNow(episode.podcastId))
+                                result.set(MediaSession.MediaItemsWithStartPosition(listOf(item), 0, (application as AsidesApp).podcastSettings.startPositionMs(episode)))
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "resumption failed: $e")
+                            result.setException(e)
                         }
                     }
                     return result
@@ -342,6 +348,20 @@ class PlaybackService : MediaSessionService() {
                 }
             })
             .build()
+    }
+
+    /**
+     * A start from the background (the car's Bluetooth connecting) must reach foreground within seconds or
+     * Android kills the app. If the resume doesn't get playback going by then, give up and stop instead.
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        handler.removeCallbacks(giveUpIfSilent)
+        handler.postDelayed(giveUpIfSilent, START_GRACE_MS)
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private val giveUpIfSilent = Runnable {
+        if (player.mediaItemCount == 0) stopSelf()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -600,6 +620,7 @@ class PlaybackService : MediaSessionService() {
         private const val TAG = "Asides"
         /** The episode the listener was last in, for finding their place after the app was closed. */
         const val LAST_EPISODE_PREF = "lastEpisodeId"
+        private const val START_GRACE_MS = 7_000L
         private const val PRESS_WINDOW_MS = 500L
         private const val STRAY_MS = 1_200L
         private const val MAX_NOTE_MS = 60_000L

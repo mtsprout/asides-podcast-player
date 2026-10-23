@@ -22,8 +22,8 @@ android {
         applicationId = "com.asides.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "1.0.11"
+        versionCode = 22
+        versionName = "1.0.12"
     }
 
     signingConfigs {
