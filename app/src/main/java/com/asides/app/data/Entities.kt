@@ -41,6 +41,8 @@ data class Episode(
     val guid: String? = null,
     /** Found by a refresh and not yet opened. Episodes from the first download are never "new". */
     @ColumnInfo(defaultValue = "0") val isNew: Boolean = false,
+    /** When this episode's place was last saved (0: never), so "where was I?" doesn't rest on a single pointer. */
+    @ColumnInfo(defaultValue = "0") val lastPlayedAt: Long = 0,
 )
 
 @Entity(

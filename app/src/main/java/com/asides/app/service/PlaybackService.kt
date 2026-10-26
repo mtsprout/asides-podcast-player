@@ -172,9 +172,15 @@ class PlaybackService : MediaSessionService() {
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                // Something else was started (not by us): the review is over, and there is no going back.
+                // Decided first, so that episode is remembered below rather than mistaken for part of the review.
+                Review.info?.let { review ->
+                    if (!ourOwnChange && mediaItem?.mediaId?.toLongOrNull() != review.reviewEpisodeId) Review.info = null
+                }
                 // Remember the episode the moment it is loaded (autoplay included), not only at the next save,
                 // so a play press after Android stops this service resumes the right one.
                 if (Review.info == null) mediaItem?.mediaId?.toLongOrNull()?.let {
+                    Log.d(TAG, "now loaded: episode $it (transition reason $reason)")
                     getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
                     // Whatever starts playing leaves the queue: it is no longer "up next".
                     repo.playbackStarted(it)
@@ -184,9 +190,6 @@ class PlaybackService : MediaSessionService() {
                     val speed = own ?: getSharedPreferences("prefs", MODE_PRIVATE).getFloat("speed", 1f)
                     if (player.playbackParameters.speed != speed) player.setPlaybackSpeed(speed)
                 }
-                // Something else was started (not by us): the review is over, and there is no going back.
-                val review = Review.info ?: return
-                if (!ourOwnChange && mediaItem?.mediaId?.toLongOrNull() != review.reviewEpisodeId) Review.info = null
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -260,6 +263,7 @@ class PlaybackService : MediaSessionService() {
                     controller: MediaSession.ControllerInfo,
                 ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
                     val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+                    Log.d(TAG, "resumption requested; player holds ${player.currentMediaItem?.mediaId} (state ${player.playbackState}), review ${Review.info != null}")
                     scope.launch {
                         // Whatever goes wrong, the future must complete, or the service never becomes foreground.
                         try {

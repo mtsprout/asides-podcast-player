@@ -375,8 +375,12 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
 
     /** The episode a play press should resume: the last one listened to, or the next one if it is finished. */
     suspend fun resumeEpisode(lastId: Long, newestFirst: Boolean): Episode? {
-        val last = db.episodes().episode(lastId) ?: return null
-        return NextEpisode.resume(db.episodes().episodesNow(last.podcastId), lastId, newestFirst)
+        // The database knows what was listened to most recently; the remembered id is only a fallback
+        // (and for installs that haven't saved a place since the timestamp was added).
+        val latest = db.episodes().lastPlayed()
+        if (latest != null && latest.id != lastId) Log.w("Asides", "resume: remembered episode was $lastId but $latest was played last")
+        val last = latest ?: db.episodes().episode(lastId) ?: return null
+        return NextEpisode.resume(db.episodes().episodesNow(last.podcastId), last.id, newestFirst)
     }
 
     suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
@@ -504,7 +508,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
             val id = episodeId(e.feedUrl, e.guid, e.audioUrl, e.title, e.pubDate, e.durationMs) ?: continue
             val current = episodeDao.episode(id) ?: continue
             if (e.played && !current.played) episodeDao.setPlayed(id, true)
-            if (!e.played && current.positionMs == 0L && e.positionMs > 0) episodeDao.savePosition(id, e.positionMs, e.durationMs)
+            if (!e.played && current.positionMs == 0L && e.positionMs > 0) episodeDao.savePosition(id, e.positionMs, e.durationMs, 0)
         }
 
         // Per-podcast settings fill in only where this phone has none of its own.
@@ -563,7 +567,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     }
 
     suspend fun savePosition(episodeId: Long, positionMs: Long, durationMs: Long) =
-        db.episodes().savePosition(episodeId, positionMs, durationMs)
+        db.episodes().savePosition(episodeId, positionMs, durationMs, System.currentTimeMillis())
 
     /** Told which episodes a refresh just found for a podcast (not the first download). */
     var onNewEpisodes: (Podcast, List<Episode>) -> Unit = { _, _ -> }
@@ -584,7 +588,7 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     /** Called when an episode plays to the end: mark it played and rewind it for next time. */
     suspend fun markFinished(episodeId: Long) {
         db.episodes().setPlayed(episodeId, true)
-        db.episodes().savePosition(episodeId, 0, 0)
+        db.episodes().savePosition(episodeId, 0, 0, System.currentTimeMillis())
         onPlayed(listOf(episodeId))
     }
 

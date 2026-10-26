@@ -110,8 +110,13 @@ interface EpisodeDao {
     @Query("UPDATE episode SET played = :played, isNew = 0 WHERE id IN (:ids)")
     suspend fun setPlayed(ids: Collection<Long>, played: Boolean)
 
-    @Query("UPDATE episode SET positionMs = :positionMs, durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END WHERE id = :id")
-    suspend fun savePosition(id: Long, positionMs: Long, durationMs: Long)
+    /** [at] is when the listener was there; a restored backup passes 0 so it doesn't pose as recent listening. */
+    @Query("UPDATE episode SET positionMs = :positionMs, durationMs = CASE WHEN :durationMs > 0 THEN :durationMs ELSE durationMs END, lastPlayedAt = :at WHERE id = :id")
+    suspend fun savePosition(id: Long, positionMs: Long, durationMs: Long, at: Long)
+
+    /** The episode whose place was saved most recently, whichever podcast it is in. */
+    @Query("SELECT * FROM episode WHERE lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT 1")
+    suspend fun lastPlayed(): Episode?
 }
 
 @Dao
@@ -164,7 +169,7 @@ interface AnnotationDao {
     suspend fun delete(id: Long)
 }
 
-@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 3, exportSchema = false)
+@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 4, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun podcasts(): PodcastDao
     abstract fun episodes(): EpisodeDao
@@ -172,7 +177,14 @@ abstract class AppDb : RoomDatabase() {
 
     companion object {
         fun create(context: Context): AppDb =
-            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+
+        /** Adds when each episode was last listened to, for resuming the right one. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE episode ADD COLUMN lastPlayedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
         /** Adds what feed refreshing needs: cache validators, episode ids, a "new" flag and notify setting. */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
