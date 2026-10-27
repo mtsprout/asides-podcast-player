@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
 // The colours of the app icon and splash screen: deep indigo, with amber for the sound wave.
-private val Indigo = Color(0xFF4A3AA8)
+private val BrandIndigo = Color(0xFF4A3AA8)
 private val Amber = Color(0xFFFFB74D)
 
 // Keep these two in step with window_bg in res/values/colors.xml and values-night/colors.xml, so the
@@ -30,7 +30,7 @@ private val BackgroundLight = Color(0xFFFCF8FF)
 
 private val DarkColors = darkColorScheme(
     primary = Color(0xFFC3BAFF), onPrimary = Color(0xFF241A7A),
-    primaryContainer = Indigo, onPrimaryContainer = Color(0xFFE6E0FF),
+    primaryContainer = BrandIndigo, onPrimaryContainer = Color(0xFFE6E0FF),
     secondary = Color(0xFFCAC4EA), onSecondary = Color(0xFF312C58),
     secondaryContainer = Color(0xFF3F3A66), onSecondaryContainer = Color(0xFFE6E0FF),
     tertiary = Amber, onTertiary = Color(0xFF3E2800),
@@ -45,7 +45,7 @@ private val DarkColors = darkColorScheme(
 )
 
 private val LightColors = lightColorScheme(
-    primary = Indigo, onPrimary = Color.White,
+    primary = BrandIndigo, onPrimary = Color.White,
     primaryContainer = Color(0xFFE4DFFF), onPrimaryContainer = Color(0xFF150068),
     secondary = Color(0xFF5D5791), onSecondary = Color.White,
     secondaryContainer = Color(0xFFE2DFFF), onSecondaryContainer = Color(0xFF191247),
@@ -61,11 +61,71 @@ private val LightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE4E0EF),
 )
 
-/** Follows the system's light or dark setting unless [dark] says otherwise (used by debug builds). */
+/**
+ * A scheme built from two hues: [hue] tints the surfaces and the main colour, [accentHue] is the accent
+ * the amber plays in the default theme. [tint] scales how colourful the surfaces are (1 = fully).
+ */
+private fun generatedScheme(dark: Boolean, hue: Float, accentHue: Float, tint: Float): ColorScheme {
+    fun c(h: Float, s: Float, l: Float) = Color.hsl(h, (s * tint).coerceIn(0f, 1f), l)
+    // The accent keeps its own full strength, whatever the tint.
+    fun a(s: Float, l: Float) = Color.hsl(accentHue, s, l)
+    return if (dark) darkColorScheme(
+        primary = c(hue, .95f, .84f), onPrimary = c(hue, .6f, .22f),
+        primaryContainer = c(hue, .5f, .42f), onPrimaryContainer = c(hue, 1f, .93f),
+        secondary = c(hue, .4f, .84f), onSecondary = c(hue, .3f, .24f),
+        secondaryContainer = c(hue, .25f, .33f), onSecondaryContainer = c(hue, .8f, .93f),
+        tertiary = a(.95f, .65f), onTertiary = a(1f, .12f),
+        tertiaryContainer = a(1f, .18f), onTertiaryContainer = a(1f, .85f),
+        background = c(hue, .4f, .09f), onBackground = c(hue, .4f, .93f),
+        surface = c(hue, .4f, .09f), onSurface = c(hue, .4f, .93f),
+        surfaceVariant = c(hue, .25f, .20f), onSurfaceVariant = c(hue, .2f, .82f),
+        outline = c(hue, .12f, .62f), outlineVariant = c(hue, .15f, .31f),
+        surfaceContainerLowest = c(hue, .4f, .06f), surfaceContainerLow = c(hue, .4f, .11f),
+        surfaceContainer = c(hue, .4f, .13f), surfaceContainerHigh = c(hue, .3f, .17f),
+        surfaceContainerHighest = c(hue, .3f, .21f),
+    ) else lightColorScheme(
+        primary = c(hue, .5f, .43f), onPrimary = Color.White,
+        primaryContainer = c(hue, 1f, .93f), onPrimaryContainer = c(hue, 1f, .20f),
+        secondary = c(hue, .25f, .45f), onSecondary = Color.White,
+        secondaryContainer = c(hue, .8f, .92f), onSecondaryContainer = c(hue, .6f, .17f),
+        tertiary = a(1f, .27f), onTertiary = Color.White,
+        tertiaryContainer = a(1f, .85f), onTertiaryContainer = a(1f, .09f),
+        background = c(hue, 1f, .985f), onBackground = c(hue, .1f, .12f),
+        surface = c(hue, 1f, .985f), onSurface = c(hue, .1f, .12f),
+        surfaceVariant = c(hue, .3f, .92f), onSurfaceVariant = c(hue, .12f, .31f),
+        outline = c(hue, .08f, .50f), outlineVariant = c(hue, .2f, .82f),
+        surfaceContainerLowest = Color.White, surfaceContainerLow = c(hue, 1f, .97f),
+        surfaceContainer = c(hue, .6f, .95f), surfaceContainerHigh = c(hue, .4f, .93f),
+        surfaceContainerHighest = c(hue, .3f, .91f),
+    )
+}
+
+/**
+ * The colour themes to choose from. Each has a light and a dark scheme; which one shows follows the
+ * system setting. [Indigo] is the app's own look and matches the icon and splash screen.
+ */
+enum class ColorTheme(val key: String, val label: String, val swatch: Color, private val build: (Boolean) -> ColorScheme) {
+    Indigo("indigo", "Indigo", BrandIndigo, { dark -> if (dark) DarkColors else LightColors }),
+    Forest("forest", "Forest", Color.hsl(145f, .5f, .35f), { generatedScheme(it, 145f, 35f, 1f) }),
+    Ocean("ocean", "Ocean", Color.hsl(205f, .6f, .42f), { generatedScheme(it, 205f, 15f, 1f) }),
+    Rose("rose", "Rose", Color.hsl(335f, .5f, .48f), { generatedScheme(it, 335f, 45f, 1f) }),
+    Ember("ember", "Ember", Color.hsl(18f, .7f, .48f), { generatedScheme(it, 18f, 175f, 1f) }),
+    Graphite("graphite", "Graphite", Color.hsl(220f, .08f, .42f), { generatedScheme(it, 220f, 40f, .25f) });
+
+    fun scheme(dark: Boolean): ColorScheme = build(dark)
+
+    companion object {
+        fun from(key: String?) = entries.firstOrNull { it.key == key } ?: Indigo
+    }
+}
+
+/**
+ * Follows the system's light or dark setting unless [dark] says otherwise (used by debug builds), in
+ * the colour theme chosen in Settings.
+ */
 @Composable
-fun AsidesTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val scheme: ColorScheme = if (dark) DarkColors else LightColors
-    MaterialTheme(colorScheme = scheme, content = content)
+fun AsidesTheme(dark: Boolean = isSystemInDarkTheme(), theme: ColorTheme = AppSettings.colorTheme, content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = theme.scheme(dark), content = content)
 }
 
 /**

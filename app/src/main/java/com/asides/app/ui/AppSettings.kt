@@ -29,6 +29,15 @@ object AppSettings {
     var listDensity by mutableStateOf(ListDensity.Compact)
         private set
 
+    /** The colour theme (see [ColorTheme]); the app's own indigo until another is picked. */
+    var colorTheme by mutableStateOf(ColorTheme.Indigo)
+        private set
+
+    fun chooseColorTheme(theme: ColorTheme) {
+        colorTheme = theme
+        prefs.edit().putString("colorTheme", theme.key).apply()
+    }
+
     /** Whether the user has dismissed the welcome note on the home page. */
     var introSeen by mutableStateOf(true)
         private set
@@ -62,6 +71,7 @@ object AppSettings {
     fun init(context: Context) {
         prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         listDensity = ListDensity.from(prefs.getString("listDensity", null))
+        colorTheme = ColorTheme.from(prefs.getString("colorTheme", null))
         introSeen = prefs.getBoolean("introSeen", false)
         saveAudio = prefs.getBoolean("saveAudio", false)
         resumeOnBluetooth = prefs.getBoolean("resumeOnBluetooth", false)

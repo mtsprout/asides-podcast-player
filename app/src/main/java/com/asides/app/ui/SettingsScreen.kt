@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -178,6 +180,28 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+
+        Section("Color theme") {
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                ColorTheme.entries.forEach { theme ->
+                    FilterChip(
+                        selected = AppSettings.colorTheme == theme,
+                        onClick = { AppSettings.chooseColorTheme(theme) },
+                        label = { Text(theme.label) },
+                        leadingIcon = {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.size(16.dp).background(theme.swatch, androidx.compose.foundation.shape.CircleShape),
+                            )
+                        },
+                    )
+                }
+            }
+            Text("Each theme has a light and a dark version; which one shows follows your phone's setting.", style = MaterialTheme.typography.bodySmall)
+        }
 
         Section("Text size in episode lists") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
