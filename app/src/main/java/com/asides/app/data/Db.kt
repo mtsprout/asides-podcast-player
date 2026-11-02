@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
+import androidx.room.Upsert
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -169,15 +170,46 @@ interface AnnotationDao {
     suspend fun delete(id: Long)
 }
 
-@Database(entities = [Podcast::class, Episode::class, Annotation::class], version = 4, exportSchema = false)
+@Dao
+interface WalkDao {
+    @Query("SELECT * FROM walk ORDER BY id DESC")
+    fun walks(): Flow<List<Walk>>
+
+    // Upsert rather than replace: a replace deletes the row first, which would cascade to its episodes.
+    @Upsert
+    suspend fun upsert(walk: Walk)
+
+    @Upsert
+    suspend fun upsertEpisodes(rows: List<WalkEpisode>)
+
+    @Query("DELETE FROM walk WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Database(entities = [Podcast::class, Episode::class, Annotation::class, Walk::class, WalkEpisode::class], version = 5, exportSchema = false)
 abstract class AppDb : RoomDatabase() {
     abstract fun podcasts(): PodcastDao
     abstract fun episodes(): EpisodeDao
     abstract fun annotations(): AnnotationDao
+    abstract fun walks(): WalkDao
 
     companion object {
         fun create(context: Context): AppDb =
-            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+            Room.databaseBuilder(context, AppDb::class.java, "asides.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+
+        /** Adds walks: steps counted while listening on headphones, and which episodes they went to. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `walk` (`id` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL, `steps` INTEGER NOT NULL, `activeMs` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `walk_episode` (`walkId` INTEGER NOT NULL, `episodeId` INTEGER NOT NULL, " +
+                        "`steps` INTEGER NOT NULL, `activeMs` INTEGER NOT NULL, PRIMARY KEY(`walkId`, `episodeId`), " +
+                        "FOREIGN KEY(`walkId`) REFERENCES `walk`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                        "FOREIGN KEY(`episodeId`) REFERENCES `episode`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_walk_episode_episodeId` ON `walk_episode` (`episodeId`)")
+            }
+        }
 
         /** Adds when each episode was last listened to, for resuming the right one. */
         private val MIGRATION_3_4 = object : Migration(3, 4) {

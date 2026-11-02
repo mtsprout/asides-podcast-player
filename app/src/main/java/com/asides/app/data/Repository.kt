@@ -3,6 +3,7 @@ package com.asides.app.data
 import android.util.Log
 import androidx.room.withTransaction
 import com.asides.app.service.Transcriber
+import com.asides.app.service.WalkSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +71,15 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     fun recentAsides(count: Int) = allAnnotations.map { rows -> rows.sortedByDescending { it.createdAt }.take(count) }
     /** Unplayed episodes of followed podcasts; the front page picks "up next" from these. */
     val unplayed = db.episodes().unplayedSubscribed()
+    /** Recorded walks, newest first. */
+    val walks = db.walks().walks()
+
+    /** Saves a walk as it stands; called again as it goes on, each time replacing what was saved. */
+    suspend fun saveWalk(w: WalkSnapshot) = db.withTransaction {
+        db.walks().upsert(Walk(w.startedAt, w.endedAt, w.steps, w.activeMs))
+        db.walks().upsertEpisodes(w.episodes.map { (episodeId, e) -> WalkEpisode(w.startedAt, episodeId, e.steps, e.activeMs) })
+    }
+
     /** Per podcast, how many episodes a refresh found that haven't been opened yet. */
     val newCounts = db.episodes().newCounts().map { rows -> rows.associate { it.podcastId to it.count } }
 

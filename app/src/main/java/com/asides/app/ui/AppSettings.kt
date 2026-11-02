@@ -59,6 +59,15 @@ object AppSettings {
         prefs.edit().putBoolean("resumeOnBluetooth", on).apply()
     }
 
+    /** Count steps while listening on headphones (see [com.asides.app.service.WalkSession]). Off until asked for. */
+    var walksEnabled by mutableStateOf(false)
+        private set
+
+    fun chooseWalksEnabled(on: Boolean) {
+        walksEnabled = on
+        prefs.edit().putBoolean(com.asides.app.service.WalkSession.PREF, on).apply()
+    }
+
     /** Delete an episode's download once it is played (finished, or marked played). On unless turned off. */
     var autoDeleteDownloads by mutableStateOf(true)
         private set
@@ -76,6 +85,7 @@ object AppSettings {
         saveAudio = prefs.getBoolean("saveAudio", false)
         resumeOnBluetooth = prefs.getBoolean("resumeOnBluetooth", false)
         autoDeleteDownloads = prefs.getBoolean("autoDeleteDownloads", true)
+        walksEnabled = prefs.getBoolean(com.asides.app.service.WalkSession.PREF, false)
         interests = Discover.parseInterests(prefs.getString("interests", null))
     }
 

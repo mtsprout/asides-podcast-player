@@ -104,6 +104,7 @@ class PlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private var session: MediaSession? = null
     private lateinit var recorder: AnnotationRecorder
+    private lateinit var walks: WalkSession
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = Handler(Looper.getMainLooper())
     private val counter = PressCounter(PRESS_WINDOW_MS)
@@ -139,6 +140,7 @@ class PlaybackService : MediaSessionService() {
         val app = application as AsidesApp
         val repo = app.repo
         recorder = AnnotationRecorder(repo.annotationDir)
+        walks = WalkSession(this, repo)
 
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(
@@ -179,6 +181,7 @@ class PlaybackService : MediaSessionService() {
                 }
                 // Remember the episode the moment it is loaded (autoplay included), not only at the next save,
                 // so a play press after Android stops this service resumes the right one.
+                walks.episodeChanged(mediaItem?.mediaId?.toLongOrNull())
                 if (Review.info == null) mediaItem?.mediaId?.toLongOrNull()?.let {
                     Log.d(TAG, "now loaded: episode $it (transition reason $reason)")
                     getSharedPreferences("prefs", MODE_PRIVATE).edit().putLong(LAST_EPISODE_PREF, it).commit()
@@ -193,6 +196,7 @@ class PlaybackService : MediaSessionService() {
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                walks.playbackChanged(isPlaying, player.currentMediaItem?.mediaId?.toLongOrNull())
                 if (isPlaying) handler.post(savePosition) else {
                     handler.removeCallbacks(savePosition)
                     persistPosition()
@@ -612,6 +616,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         recorder.stop()
+        walks.release()
         persistPosition()
         session?.release()
         session = null

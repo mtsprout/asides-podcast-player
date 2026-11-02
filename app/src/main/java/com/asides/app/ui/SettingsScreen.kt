@@ -287,6 +287,40 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
             )
         }
 
+        if (remember { com.asides.app.service.WalkSession.hasStepCounter(context) }) Section("Walks") {
+            val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                // Bluetooth is optional (it tells car audio from headphones); the step counter isn't.
+                AppSettings.chooseWalksEnabled(com.asides.app.service.WalkSession.permitted(context))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Count steps while listening on headphones", Modifier.weight(1f))
+                Switch(checked = AppSettings.walksEnabled, onCheckedChange = { on ->
+                    val wanted = buildList {
+                        if (android.os.Build.VERSION.SDK_INT >= 29) add(android.Manifest.permission.ACTIVITY_RECOGNITION)
+                        if (android.os.Build.VERSION.SDK_INT >= 31) add(android.Manifest.permission.BLUETOOTH_CONNECT)
+                    }.filter {
+                        androidx.core.content.ContextCompat.checkSelfPermission(context, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                    if (on && wanted.isNotEmpty()) ask.launch(wanted.toTypedArray()) else AppSettings.chooseWalksEnabled(on)
+                })
+            }
+            Text(
+                "While an episode plays on headphones, Asides counts your steps with your phone's step counter. " +
+                    "Pauses of up to 5 minutes stay part of the same walk; car audio and speakers never count. " +
+                    "Android asks once for permission to see your physical activity. Nothing leaves your phone.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            // Until the Walks tab exists: the latest walk, to check the counting against reality.
+            val walks by repo.walks.collectAsState(initial = emptyList())
+            walks.firstOrNull()?.let { w ->
+                val start = SimpleDateFormat("EEE d MMM, h:mm a", Locale.getDefault()).format(Date(w.id))
+                Text(
+                    "Last walk: $start, ${"%,d".format(w.steps)} steps in ${w.activeMs / 60_000} min. ${plural(walks.size, "walk")} recorded.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+
         Section("Recordings") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Save audio files", Modifier.weight(1f))

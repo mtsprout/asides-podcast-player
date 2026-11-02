@@ -78,3 +78,34 @@ data class AnnotationRow(
     val podcastTitle: String,
     val podcastArtworkUrl: String?,
 )
+
+/**
+ * A stretch of listening on headphones while walking. [id] is when it started (epoch ms); [endedAt] the
+ * last moment it was playing. Distance isn't stored: it's steps times the stride, worked out when shown,
+ * so a better stride corrects every walk.
+ */
+@Entity(tableName = "walk")
+data class Walk(
+    @PrimaryKey val id: Long,
+    val endedAt: Long,
+    val steps: Long,
+    /** Time spent playing during the walk; pauses don't count. */
+    val activeMs: Long,
+)
+
+/** How much of a walk went to one episode. */
+@Entity(
+    tableName = "walk_episode",
+    primaryKeys = ["walkId", "episodeId"],
+    foreignKeys = [
+        ForeignKey(Walk::class, ["id"], ["walkId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(Episode::class, ["id"], ["episodeId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index("episodeId")],
+)
+data class WalkEpisode(
+    val walkId: Long,
+    val episodeId: Long,
+    val steps: Long,
+    val activeMs: Long,
+)
