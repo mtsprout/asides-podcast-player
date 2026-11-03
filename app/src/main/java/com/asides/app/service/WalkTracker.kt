@@ -70,6 +70,21 @@ class WalkTracker(private val graceMs: Long = GRACE_MS) {
         return closed
     }
 
+    /**
+     * Carries on with a walk saved earlier (the service was stopped during a pause and has started
+     * again), if nothing is in progress and the pause hasn't outlasted the grace period at [now].
+     */
+    fun restore(saved: WalkSnapshot, now: Long): Boolean {
+        if (walk != null || now - saved.endedAt > graceMs) return false
+        walk = Building(saved.startedAt).apply {
+            endedAt = saved.endedAt
+            steps = saved.steps
+            activeMs = saved.activeMs
+            episodes.putAll(saved.episodes)
+        }
+        return true
+    }
+
     /** A step-counter reading: [counter] is the phone's running total. */
     fun steps(counter: Long, now: Long) {
         val w = walk ?: return

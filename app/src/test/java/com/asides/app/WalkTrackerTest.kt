@@ -102,6 +102,25 @@ class WalkTrackerTest {
         assertNull(t.end(3 * min))
     }
 
+    @Test fun aSavedWalkCarriesOnAfterARestart() {
+        val saved = com.asides.app.service.WalkSnapshot(0, 10 * min, 1_000, 10 * min, mapOf(1L to EpisodeSteps(1_000, 10 * min)))
+        val t = WalkTracker()
+        assertTrue(t.restore(saved, 12 * min))
+        t.play(12 * min, 1)
+        t.steps(50, 12 * min); t.steps(250, 14 * min)
+        val w = t.current!!
+        assertEquals(0L, w.startedAt)
+        assertEquals(1_200L, w.steps)
+        assertEquals(EpisodeSteps(1_200, 12 * min), w.episodes[1])
+    }
+
+    @Test fun aSavedWalkFromTooLongAgoIsLeftAlone() {
+        val saved = com.asides.app.service.WalkSnapshot(0, 10 * min, 1_000, 10 * min, emptyMap())
+        val t = WalkTracker()
+        assertFalse(t.restore(saved, 20 * min))
+        assertNull(t.current)
+    }
+
     @Test fun bluetoothKinds() {
         assertEquals(AudioKind.Car, WalkRules.bluetoothKind(BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO))
         assertEquals(AudioKind.Speaker, WalkRules.bluetoothKind(BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER))

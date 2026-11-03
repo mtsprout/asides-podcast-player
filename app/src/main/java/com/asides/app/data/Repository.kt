@@ -3,6 +3,7 @@ package com.asides.app.data
 import android.util.Log
 import androidx.room.withTransaction
 import com.asides.app.service.Transcriber
+import com.asides.app.service.EpisodeSteps
 import com.asides.app.service.WalkSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,19 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
     suspend fun saveWalk(w: WalkSnapshot) = db.withTransaction {
         db.walks().upsert(Walk(w.startedAt, w.endedAt, w.steps, w.activeMs))
         db.walks().upsertEpisodes(w.episodes.map { (episodeId, e) -> WalkEpisode(w.startedAt, episodeId, e.steps, e.activeMs) })
+    }
+
+    fun walk(id: Long) = db.walks().walkFlow(id)
+    fun walkEpisodes(walkId: Long) = db.walks().episodesFor(walkId)
+    /** Per walk, the artwork of its podcasts, the most listened to first. */
+    val walkArtwork = db.walks().artwork().map { rows -> rows.groupBy({ it.walkId }, { it.artworkUrl }) }
+    suspend fun deleteWalk(id: Long) = db.walks().delete(id)
+
+    /** The newest walk with its episodes, for carrying on with it after the player service restarted. */
+    suspend fun latestWalk(): WalkSnapshot? {
+        val w = db.walks().latest() ?: return null
+        val episodes = db.walks().episodesNow(w.id).associate { it.episodeId to EpisodeSteps(it.steps, it.activeMs) }
+        return WalkSnapshot(w.id, w.endedAt, w.steps, w.activeMs, episodes)
     }
 
     /** Per podcast, how many episodes a refresh found that haven't been opened yet. */

@@ -48,6 +48,12 @@ class WalkSession(private val context: Context, private val repo: Repository) : 
     private var episodeId: Long? = null
     private var listening = false
 
+    /**
+     * The newest saved walk, read once when the service starts. If Android stopped the service during a
+     * pause, playing again within the grace period carries on with that walk instead of starting another.
+     */
+    private var resumable: WalkSnapshot? = null
+
     private val periodicSave = object : Runnable {
         override fun run() {
             tracker.current?.let(::save)
@@ -68,6 +74,10 @@ class WalkSession(private val context: Context, private val repo: Repository) : 
 
     init {
         audio?.registerAudioDeviceCallback(routes, handler)
+        writes.launch {
+            val latest = try { repo.latestWalk() } catch (e: Exception) { null }
+            handler.post { if (tracker.current == null) resumable = latest }
+        }
     }
 
     fun playbackChanged(isPlaying: Boolean, episode: Long?) {
@@ -105,9 +115,11 @@ class WalkSession(private val context: Context, private val repo: Repository) : 
         if (why == null) {
             if (tracker.isCounting) return
             handler.removeCallbacks(expire)
+            resumable?.let { if (tracker.restore(it, now)) Log.d(TAG, "carrying on with the walk from ${time(it.startedAt)}") }
+            resumable = null
             tracker.play(now, episodeId)?.let { finish(it, "paused too long") }
             startCounting()
-            Log.d(TAG, "counting (walk from ${tracker.current?.startedAt})")
+            Log.d(TAG, "counting (walk from ${tracker.current?.startedAt?.let(::time)})")
         } else if (tracker.current != null) {
             stopCounting()
             tracker.end(now)?.let { finish(it, why) }
@@ -178,7 +190,12 @@ class WalkSession(private val context: Context, private val repo: Repository) : 
 
     private fun finish(w: WalkSnapshot, why: String) {
         val kept = w.steps >= WalkTracker.MIN_STEPS
-        Log.d(TAG, "walk ended ($why): ${w.steps} steps in ${w.activeMs / 60_000} min, ${if (kept) "kept" else "too short, dropped"}")
+        // The pause timer stops while the phone sleeps, so this can run well after the walk really ended.
+        Log.d(
+            TAG,
+            "walk ${time(w.startedAt)}–${time(w.endedAt)} ended ($why): ${w.steps} steps in ${w.activeMs / 60_000} min, " +
+                if (kept) "kept" else "too short, dropped",
+        )
         save(w)
     }
 
@@ -189,6 +206,8 @@ class WalkSession(private val context: Context, private val repo: Repository) : 
         tracker.end(System.currentTimeMillis())?.let { finish(it, "service stopped") }
         audio?.unregisterAudioDeviceCallback(routes)
     }
+
+    private fun time(ms: Long) = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(ms))
 
     companion object {
         private const val TAG = "AsidesWalk"

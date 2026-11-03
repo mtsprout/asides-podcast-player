@@ -34,6 +34,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material3.Icon
@@ -239,6 +240,13 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
                     icon = { Icon(Icons.Default.Podcasts, null) },
                     label = { Text("Library") },
                 )
+                // Only for those who turned walks on in Settings.
+                if (com.asides.app.ui.AppSettings.walksEnabled) NavigationBarItem(
+                    selected = route == "walks" || route.startsWith("walk/"),
+                    onClick = { nav.navigateTab("walks") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.DirectionsWalk, null) },
+                    label = { Text("Walks") },
+                )
                 NavigationBarItem(
                     selected = route == "annotations",
                     onClick = { nav.navigateTab("annotations") },
@@ -299,6 +307,14 @@ private fun App(repo: com.asides.app.data.Repository, pendingRoute: String?, onR
             }
             composable("transcript/{id}") { e ->
                 TranscriptScreen(repo, e.arguments!!.getString("id")!!.toLong(), player)
+            }
+            composable("walks") { com.asides.app.ui.WalksScreen(repo) { nav.navigate("walk/$it") } }
+            composable("walk/{id}") { e ->
+                com.asides.app.ui.WalkScreen(
+                    repo, e.arguments!!.getString("id")!!.toLong(),
+                    onOpenEpisode = { nav.navigate("episode/$it") },
+                    onDeleted = { nav.popBackStack() },
+                )
             }
             composable("annotations") {
                 AllAnnotationsScreen(repo, player, { nav.navigate("episode/$it") }, { nav.navigate("transcript/$it") })

@@ -109,3 +109,16 @@ data class WalkEpisode(
     val steps: Long,
     val activeMs: Long,
 )
+
+/** One episode heard on a walk, with what it needs for showing. */
+data class WalkEpisodeRow(
+    val episodeId: Long,
+    val steps: Long,
+    val activeMs: Long,
+    val episodeTitle: String,
+    val podcastTitle: String,
+    val podcastArtworkUrl: String?,
+)
+
+/** A podcast heard on a walk, and for how long. */
+data class WalkArt(val walkId: Long, val artworkUrl: String?, val ms: Long)

@@ -68,6 +68,38 @@ object AppSettings {
         prefs.edit().putBoolean(com.asides.app.service.WalkSession.PREF, on).apply()
     }
 
+    /** Height in cm for estimating stride; 0 until given. */
+    var heightCm by mutableStateOf(0)
+        private set
+
+    /** Stride in cm measured from a walk of known length; 0 until measured. Takes priority over height. */
+    var measuredStrideCm by mutableStateOf(0.0)
+        private set
+
+    var distanceUnit by mutableStateOf(com.asides.app.data.DistanceUnit.Auto)
+        private set
+
+    fun chooseHeightCm(cm: Int) {
+        heightCm = cm
+        prefs.edit().putInt("heightCm", cm).apply()
+    }
+
+    fun chooseMeasuredStrideCm(cm: Double) {
+        measuredStrideCm = cm
+        prefs.edit().putFloat("measuredStrideCm", cm.toFloat()).apply()
+    }
+
+    fun chooseDistanceUnit(unit: com.asides.app.data.DistanceUnit) {
+        distanceUnit = unit
+        prefs.edit().putString("distanceUnit", unit.key).apply()
+    }
+
+    /** The stride distances are worked out with. */
+    val stride get() = com.asides.app.data.Walks.stride(measuredStrideCm, heightCm)
+
+    /** Kilometres or miles, with "automatic" settled by the phone's region. */
+    val resolvedUnit get() = com.asides.app.data.Walks.resolve(distanceUnit, java.util.Locale.getDefault())
+
     /** Delete an episode's download once it is played (finished, or marked played). On unless turned off. */
     var autoDeleteDownloads by mutableStateOf(true)
         private set
@@ -86,6 +118,9 @@ object AppSettings {
         resumeOnBluetooth = prefs.getBoolean("resumeOnBluetooth", false)
         autoDeleteDownloads = prefs.getBoolean("autoDeleteDownloads", true)
         walksEnabled = prefs.getBoolean(com.asides.app.service.WalkSession.PREF, false)
+        heightCm = prefs.getInt("heightCm", 0)
+        measuredStrideCm = prefs.getFloat("measuredStrideCm", 0f).toDouble()
+        distanceUnit = com.asides.app.data.DistanceUnit.from(prefs.getString("distanceUnit", null))
         interests = Discover.parseInterests(prefs.getString("interests", null))
     }
 

@@ -81,6 +81,51 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     }
 }
 
+/** Units, height and stride: what walk distances are worked out from. */
+@Composable
+private fun WalkDistanceSettings() {
+    val imperial = AppSettings.resolvedUnit == com.asides.app.data.DistanceUnit.Mi
+    Text("Distance", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.asides.app.data.DistanceUnit.entries.forEach { unit ->
+            FilterChip(
+                selected = AppSettings.distanceUnit == unit,
+                onClick = { AppSettings.chooseDistanceUnit(unit) },
+                label = { Text(unit.label) },
+            )
+        }
+    }
+    var height by remember(imperial) {
+        mutableStateOf(if (AppSettings.heightCm > 0) com.asides.app.data.Walks.formatHeight(AppSettings.heightCm, imperial).replace('′', '\'').replace("″", "") else "")
+    }
+    val parsed = com.asides.app.data.Walks.parseHeightCm(height, imperial)
+    androidx.compose.material3.OutlinedTextField(
+        height,
+        { text ->
+            height = text
+            com.asides.app.data.Walks.parseHeightCm(text, imperial)?.let(AppSettings::chooseHeightCm)
+            if (text.isBlank()) AppSettings.chooseHeightCm(0)
+        },
+        label = { Text(if (imperial) "Your height (like 5'10)" else "Your height in cm") },
+        singleLine = true,
+        isError = height.isNotBlank() && parsed == null,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    val stride = AppSettings.stride
+    val strideText = if (imperial) "%.1f in".format(stride.cm / 2.54) else "%.0f cm".format(stride.cm)
+    Text(
+        when (stride.source) {
+            com.asides.app.data.StrideSource.Measured -> "Stride: $strideText, measured on a walk. Your height isn't used while a measured stride is set."
+            com.asides.app.data.StrideSource.Height -> "Stride: $strideText, estimated from your height. Setting a walk's real distance (open it in the Walks tab) measures it instead."
+            com.asides.app.data.StrideSource.Average -> "Stride: $strideText, an average. Add your height for a better estimate."
+        },
+        style = MaterialTheme.typography.bodySmall,
+    )
+    if (stride.source == com.asides.app.data.StrideSource.Measured) {
+        TextButton(onClick = { AppSettings.chooseMeasuredStrideCm(0.0) }) { Text("Forget the measured stride") }
+    }
+}
+
 @Composable
 fun SettingsScreen(repo: Repository, player: PlayerConnection) {
     val context = LocalContext.current
@@ -310,15 +355,7 @@ fun SettingsScreen(repo: Repository, player: PlayerConnection) {
                     "Android asks once for permission to see your physical activity. Nothing leaves your phone.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            // Until the Walks tab exists: the latest walk, to check the counting against reality.
-            val walks by repo.walks.collectAsState(initial = emptyList())
-            walks.firstOrNull()?.let { w ->
-                val start = SimpleDateFormat("EEE d MMM, h:mm a", Locale.getDefault()).format(Date(w.id))
-                Text(
-                    "Last walk: $start, ${"%,d".format(w.steps)} steps in ${w.activeMs / 60_000} min. ${plural(walks.size, "walk")} recorded.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            if (AppSettings.walksEnabled) WalkDistanceSettings()
         }
 
         Section("Recordings") {

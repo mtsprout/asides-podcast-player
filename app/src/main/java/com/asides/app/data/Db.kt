@@ -184,6 +184,41 @@ interface WalkDao {
 
     @Query("DELETE FROM walk WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM walk WHERE id = :id")
+    fun walkFlow(id: Long): Flow<Walk?>
+
+    @Query("SELECT * FROM walk ORDER BY id DESC LIMIT 1")
+    suspend fun latest(): Walk?
+
+    @Query("SELECT * FROM walk_episode WHERE walkId = :walkId")
+    suspend fun episodesNow(walkId: Long): List<WalkEpisode>
+
+    @Query(
+        """
+        SELECT we.episodeId, we.steps, we.activeMs, e.title AS episodeTitle,
+               p.title AS podcastTitle, p.artworkUrl AS podcastArtworkUrl
+        FROM walk_episode we
+        JOIN episode e ON e.id = we.episodeId
+        JOIN podcast p ON p.id = e.podcastId
+        WHERE we.walkId = :walkId
+        ORDER BY we.activeMs DESC
+        """
+    )
+    fun episodesFor(walkId: Long): Flow<List<WalkEpisodeRow>>
+
+    /** Each walk's podcasts, the most listened to first, for the artwork in the list. */
+    @Query(
+        """
+        SELECT we.walkId AS walkId, p.artworkUrl AS artworkUrl, SUM(we.activeMs) AS ms
+        FROM walk_episode we
+        JOIN episode e ON e.id = we.episodeId
+        JOIN podcast p ON p.id = e.podcastId
+        GROUP BY we.walkId, p.id
+        ORDER BY we.walkId, ms DESC
+        """
+    )
+    fun artwork(): Flow<List<WalkArt>>
 }
 
 @Database(entities = [Podcast::class, Episode::class, Annotation::class, Walk::class, WalkEpisode::class], version = 5, exportSchema = false)
