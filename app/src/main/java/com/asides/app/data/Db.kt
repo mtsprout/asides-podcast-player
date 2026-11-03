@@ -194,6 +194,7 @@ interface WalkDao {
     @Query("SELECT * FROM walk_episode WHERE walkId = :walkId")
     suspend fun episodesNow(walkId: Long): List<WalkEpisode>
 
+    /** In the order they were heard: a row is added when its episode first gets steps or time, and kept after. */
     @Query(
         """
         SELECT we.episodeId, we.steps, we.activeMs, e.title AS episodeTitle,
@@ -202,7 +203,7 @@ interface WalkDao {
         JOIN episode e ON e.id = we.episodeId
         JOIN podcast p ON p.id = e.podcastId
         WHERE we.walkId = :walkId
-        ORDER BY we.activeMs DESC
+        ORDER BY we.rowid
         """
     )
     fun episodesFor(walkId: Long): Flow<List<WalkEpisodeRow>>
