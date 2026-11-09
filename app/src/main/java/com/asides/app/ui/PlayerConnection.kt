@@ -34,6 +34,9 @@ class PlayerConnection(private val context: Context) {
 
     var isPlaying by mutableStateOf(false)
         private set
+    /** True once connected to the playback service; until then [currentEpisodeId] says nothing. */
+    var connected by mutableStateOf(false)
+        private set
     var currentEpisodeId by mutableLongStateOf(-1L)
         private set
     var positionMs by mutableLongStateOf(0L)
@@ -88,6 +91,7 @@ class PlayerConnection(private val context: Context) {
             controller = future.get().also {
                 it.addListener(listener)
                 sync(it)
+                connected = true
             }
         }, ContextCompat.getMainExecutor(context))
     }

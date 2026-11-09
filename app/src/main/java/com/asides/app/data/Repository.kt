@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.coroutineScope
@@ -406,6 +407,13 @@ class Repository(val db: AppDb, private val http: OkHttpClient, val annotationDi
         val last = latest ?: db.episodes().episode(lastId) ?: return null
         return NextEpisode.resume(db.episodes().episodesNow(last.podcastId), last.id, newestFirst)
     }
+
+    /**
+     * What a play press would resume ([resumeEpisode]), kept up to date as places are saved. [lastId] is read
+     * afresh each time, since the remembered episode changes while the app is open.
+     */
+    fun continueEpisode(lastId: () -> Long, newestFirst: Boolean) =
+        db.episodes().lastPlayedFlow().map { resumeEpisode(lastId(), newestFirst) }.distinctUntilChanged()
 
     suspend fun podcastNow(id: Long): Podcast? = db.podcasts().podcast(id)
 

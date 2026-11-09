@@ -118,6 +118,9 @@ interface EpisodeDao {
     /** The episode whose place was saved most recently, whichever podcast it is in. */
     @Query("SELECT * FROM episode WHERE lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT 1")
     suspend fun lastPlayed(): Episode?
+
+    @Query("SELECT * FROM episode WHERE lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT 1")
+    fun lastPlayedFlow(): Flow<Episode?>
 }
 
 @Dao

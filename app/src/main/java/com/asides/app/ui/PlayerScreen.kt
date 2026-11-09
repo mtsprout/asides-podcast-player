@@ -66,6 +66,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import com.asides.app.service.PlaybackService
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.asides.app.data.Episode
@@ -95,11 +98,26 @@ fun EpisodeScreen(
     LaunchedEffect(episode?.isNew) { if (episode?.isNew == true) repo.markSeen(episodeId) }
     val podcast by remember(podcastId) { podcastId?.let { repo.podcast(it) } ?: flowOf(null) }.collectAsState(null)
 
-    // When playback moves on to the next episode by itself, this screen follows it.
-    var wasPlayingHere by remember(episodeId) { mutableStateOf(false) }
+    // When playback moves on to the next episode by itself, this screen follows it. Saved with the page, so
+    // it survives Android closing the app in the background, which brings this page back as it last was.
+    var wasPlayingHere by androidx.compose.runtime.saveable.rememberSaveable(episodeId) { mutableStateOf(false) }
     LaunchedEffect(player.currentEpisodeId) {
         if (player.currentEpisodeId == episodeId) wasPlayingHere = true
         else if (wasPlayingHere && player.currentEpisodeId != -1L) onSwitchEpisode(player.currentEpisodeId)
+    }
+    // Back after Android closed the app (another app played meanwhile, say): the player is empty, and playback
+    // may have moved on since this page was last drawn. Go to the episode a play press would pick up.
+    val resumeContext = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (!wasPlayingHere) return@LaunchedEffect
+        snapshotFlow { player.connected }.first { it }
+        if (player.currentEpisodeId != -1L) return@LaunchedEffect
+        val prefs = resumeContext.getSharedPreferences("prefs", android.content.Context.MODE_PRIVATE)
+        val target = repo.resumeEpisode(prefs.getLong(PlaybackService.LAST_EPISODE_PREF, -1L), prefs.getBoolean("newestFirst", false))
+        if (target != null && target.id != episodeId) {
+            android.util.Log.d("Asides", "episode page $episodeId came back after a restart; moving on to ${target.id}")
+            onSwitchEpisode(target.id)
+        }
     }
 
     // What will play next, in the order the podcast's page lists episodes.

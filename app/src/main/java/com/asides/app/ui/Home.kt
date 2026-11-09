@@ -76,13 +76,27 @@ internal fun minutesLeft(remainingMs: Long): String {
     return if (m < 60) "$m min left" else "${m / 60} h ${m % 60} min left"
 }
 
+/**
+ * With nothing loaded in the player, the episode a play press would pick up: the one listened to last, or
+ * the next one if that's finished. Kept current while the app stays open (once, it was read only when the
+ * home page first appeared, and could be episodes out of date).
+ */
+@Composable
+private fun resumeTarget(repo: Repository): Long {
+    val context = LocalContext.current
+    val flow = remember {
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        repo.continueEpisode({ prefs.getLong(PlaybackService.LAST_EPISODE_PREF, -1L) }, prefs.getBoolean("newestFirst", false))
+    }
+    val target by flow.collectAsState(initial = null)
+    return target?.id ?: -1L
+}
+
 /** The episode you were last listening to, with a progress bar and a play button. Hidden if there is none. */
 @Composable
 internal fun ContinueCard(repo: Repository, player: PlayerConnection, onOpenEpisode: (Long) -> Unit) {
-    val context = LocalContext.current
-    val saved = remember { context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getLong(PlaybackService.LAST_EPISODE_PREF, -1L) }
     // While reviewing an aside the player holds another episode; "continue" stays the one you left.
-    val id = if (Review.info == null && player.currentEpisodeId > 0) player.currentEpisodeId else saved
+    val id = if (Review.info == null && player.currentEpisodeId > 0) player.currentEpisodeId else resumeTarget(repo)
     if (id <= 0) return
     val episode by produceState<Episode?>(null, id) { repo.episode(id).collect { value = it } }
     val e = episode ?: return
@@ -130,8 +144,7 @@ internal fun UpNextRow(repo: Repository, podcasts: List<Podcast>, player: Player
     val context = LocalContext.current
     val newestFirst = remember { context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getBoolean("newestFirst", false) }
     // Same choice the Continue listening card makes, so the two never show the same episode.
-    val saved = remember { context.getSharedPreferences("prefs", Context.MODE_PRIVATE).getLong(PlaybackService.LAST_EPISODE_PREF, -1L) }
-    val continueId = if (Review.info == null && player.currentEpisodeId > 0) player.currentEpisodeId else saved
+    val continueId = if (Review.info == null && player.currentEpisodeId > 0) player.currentEpisodeId else resumeTarget(repo)
     val picks = remember(unplayed, newestFirst, continueId) { Discover.upNext(unplayed, newestFirst, excludeId = continueId) }
     val byId = remember(podcasts) { podcasts.associateBy { it.id } }
     if (picks.size < 2) return   // one podcast's next episode is just its tile; the row earns its space with a choice
